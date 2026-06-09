@@ -1,0 +1,68 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String?
+  phone     String?
+  name      String?
+  role      String   @default("CUSTOMER") // CUSTOMER, KITCHEN, ADMIN
+  createdAt DateTime @default(now())
+}
+
+model Table {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  number    Int      @unique
+  status    String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt DateTime @default(now())
+}
+
+model MenuItem {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String
+  price       Float
+  image       String   // SVG path/name or image url
+  category    String   // APPETIZERS, MAIN_COURSES, DESSERTS, BEVERAGES
+  status      String   @default("IN_STOCK") // IN_STOCK, OUT_OF_STOCK
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id                  String      @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber         String      @unique
+  tableNumber         Int
+  customerPhone       String?
+  customerEmail       String?
+  customerName        String?
+  status              String      @default("RECEIVED") // RECEIVED, PREPARING, READY, COMPLETED, CANCELLED
+  total               Float
+  specialInstructions String?
+  items               OrderItem[]
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+model OrderItem {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  orderId      String @db.ObjectId
+  order        Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId   String @db.ObjectId
+  menuItemName String
+  price        Float
+  quantity     Int
+}
+
+model ChatMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String
+  role      String   // user or model
+  content   String
+  createdAt DateTime @default(now())
+}
