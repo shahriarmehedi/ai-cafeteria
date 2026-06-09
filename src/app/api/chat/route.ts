@@ -325,8 +325,11 @@ CRITICAL FEATURE: If you mention or recommend any specific items from the menu c
     // Retrieve full chat history
     const history = await dbService.getChatMessages(sessionId);
 
+    // Limit history to the last 8 messages (4 turns) to stay within free tier rate limits (TPM)
+    const recentHistory = history.length > 9 ? history.slice(-9, -1) : history.slice(0, -1);
+
     // Map database history to Gemini's chat content structure
-    const contents = history.slice(0, -1).map((msg) => ({
+    const contents = recentHistory.map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
       parts: [{ text: msg.content }],
     }));
