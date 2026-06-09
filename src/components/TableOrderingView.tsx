@@ -57,23 +57,23 @@ function ChatRecommendCard({ item, onAdd }: { item: MenuItem; onAdd: () => void 
   return (
     <div
       style={{
+        flex: "0 0 220px",
         padding: "10px 12px",
-        background: "rgba(255, 255, 255, 0.02)",
+        background: "rgba(255, 255, 255, 0.03)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         gap: "10px",
-        width: "100%",
         boxShadow: "var(--shadow-sm)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <span style={{ fontSize: "20px" }}>{item.image || "🍔"}</span>
         <div style={{ textAlign: "left" }}>
-          <strong style={{ fontSize: "12px", display: "block", color: "var(--text-primary)" }}>{item.name}</strong>
-          <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>৳{item.price.toFixed(2)}</span>
+          <strong style={{ fontSize: "12px", display: "block", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "90px" }}>{item.name}</strong>
+          <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block" }}>৳{item.price.toFixed(2)}</span>
         </div>
       </div>
 
@@ -82,17 +82,17 @@ function ChatRecommendCard({ item, onAdd }: { item: MenuItem; onAdd: () => void 
         disabled={added}
         className="btn btn-primary"
         style={{
-          padding: "6px 12px",
+          padding: "6px 8px",
           borderRadius: "8px",
           fontSize: "11px",
           background: added ? "var(--success)" : "var(--primary)",
           transition: "var(--transition)",
-          minWidth: "82px",
+          minWidth: "72px",
           height: "28px",
           lineHeight: 1,
         }}
       >
-        {added ? "Added! ✓" : "Order Now"}
+        {added ? "Added!" : "Order"}
       </button>
     </div>
   );
@@ -390,10 +390,10 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: "90px", position: "relative" }}>
+    <div className="app-container" style={{ paddingBottom: "160px", position: "relative" }}>
       
       {/* Table Welcome Indicator & History Button */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h2 style={{ fontSize: "22px", fontWeight: 800 }}>Table {tableNumber}</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>Browse menu and tap items to order.</p>
@@ -785,7 +785,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
 
                     {/* Interactive Recommended Food Cards (Order directly from chat bubble) */}
                     {msg.role !== "user" && ids.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%", marginTop: "2px" }}>
+                      <div style={{ display: "flex", gap: "8px", overflowX: "auto", width: "100%", paddingBottom: "6px", scrollbarWidth: "none", marginTop: "4px" }}>
                         {ids.map((id) => {
                           const item = menuItems.find((it) => it.id === id);
                           if (!item || item.status === "OUT_OF_STOCK") return null;

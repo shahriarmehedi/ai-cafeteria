@@ -21,7 +21,11 @@ function generateLocalAIResponse(
     lowerMsg.includes("my food") ||
     lowerMsg.includes("where is my") ||
     lowerMsg.includes("preparing") ||
-    lowerMsg.includes("ready")
+    lowerMsg.includes("ready") ||
+    lowerMsg.includes("what did i") ||
+    lowerMsg.includes("what is my") ||
+    lowerMsg.includes("current order") ||
+    lowerMsg.includes("progress")
   ) {
     if (activeOrder) {
       const itemDetails = activeOrder.items
@@ -31,7 +35,7 @@ function generateLocalAIResponse(
       let statusDesc = "";
       switch (activeOrder.status) {
         case "RECEIVED":
-          statusDesc = "received by the kitchen and is in the queue.";
+          statusDesc = "received by the kitchen and is currently in the queue.";
           break;
         case "PREPARING":
           statusDesc = "being freshly prepared by our chefs right now.";
@@ -40,7 +44,7 @@ function generateLocalAIResponse(
           statusDesc = "ready for pickup! Please collect it from the counter.";
           break;
         case "COMPLETED":
-          statusDesc = "completed and served.";
+          statusDesc = "completed and served. Hope you enjoyed your meal!";
           break;
         case "CANCELLED":
           statusDesc = "cancelled.";
@@ -50,7 +54,7 @@ function generateLocalAIResponse(
       }
 
       return {
-        text: `🤖 [AI Chef] Your order **${activeOrder.orderNumber}** containing [${itemDetails}] is ${statusDesc}`,
+        text: `🤖 [AI Chef] Your active order **${activeOrder.orderNumber}** containing [${itemDetails}] is ${statusDesc} Total: ৳${activeOrder.total.toFixed(2)}.`,
         recommendIds: [],
       };
     } else {
@@ -61,7 +65,52 @@ function generateLocalAIResponse(
     }
   }
 
-  // 1. Dynamic Item Search: Scan all items in the database to see if they match the user query
+  // 1. Specific category query checks
+  if (lowerMsg.includes("drink") || lowerMsg.includes("beverage") || lowerMsg.includes("tea") || lowerMsg.includes("coffee") || lowerMsg.includes("water") || lowerMsg.includes("juice") || lowerMsg.includes("chai") || lowerMsg.includes("cold coffee") || lowerMsg.includes("masala chai")) {
+    const drinks = inStock.filter(item => item.category === "BEVERAGES");
+    if (drinks.length > 0) {
+      const recs = drinks.slice(0, 2);
+      return {
+        text: `🤖 [AI Chef] Yes! We have refreshing beverages available: ${recs.map(r => `**${r.name}** (৳${r.price.toFixed(2)})`).join(" and ")}. ${recs[0]?.description || ""}`,
+        recommendIds: recs.map(r => r.id),
+      };
+    }
+  }
+
+  if (lowerMsg.includes("dessert") || lowerMsg.includes("sweet") || lowerMsg.includes("brownie") || lowerMsg.includes("ice cream") || lowerMsg.includes("sundae") || lowerMsg.includes("cake")) {
+    const desserts = inStock.filter(item => item.category === "DESSERTS");
+    if (desserts.length > 0) {
+      const recs = desserts.slice(0, 2);
+      return {
+        text: `🤖 [AI Chef] For something sweet, try our delicious desserts: ${recs.map(r => `**${r.name}** (৳${r.price.toFixed(2)})`).join(" and ")}. ${recs[0]?.description || ""}`,
+        recommendIds: recs.map(r => r.id),
+      };
+    }
+  }
+
+  if (lowerMsg.includes("appetizer") || lowerMsg.includes("starter") || lowerMsg.includes("fries") || lowerMsg.includes("loaded") || lowerMsg.includes("side")) {
+    const appetizers = inStock.filter(item => item.category === "APPETIZERS");
+    if (appetizers.length > 0) {
+      const recs = appetizers.slice(0, 2);
+      return {
+        text: `🤖 [AI Chef] How about some delicious appetizers? I recommend our ${recs.map(r => `**${r.name}** (৳${r.price.toFixed(2)})`).join(" or ")}.`,
+        recommendIds: recs.map(r => r.id),
+      };
+    }
+  }
+
+  if (lowerMsg.includes("main") || lowerMsg.includes("meal") || lowerMsg.includes("lunch") || lowerMsg.includes("dinner") || lowerMsg.includes("burger") || lowerMsg.includes("biryani") || lowerMsg.includes("khichuri") || lowerMsg.includes("kacchi")) {
+    const mains = inStock.filter(item => item.category === "MAIN_COURSES");
+    if (mains.length > 0) {
+      const recs = mains.slice(0, 2);
+      return {
+        text: `🤖 [AI Chef] For a satisfying meal, we suggest: ${recs.map(r => `**${r.name}** (৳${r.price.toFixed(2)})`).join(" and ")}. ${recs[0]?.description || ""}`,
+        recommendIds: recs.map(r => r.id),
+      };
+    }
+  }
+
+  // 2. Dynamic Item Search: Scan all items in the database to see if they match the user query
   const matchedItem = inStock.find((item) => {
     const itemNameLower = item.name.toLowerCase();
     // Split item name into words (e.g. "Kacchi", "Biryani") and filter out short filler words
@@ -73,12 +122,12 @@ function generateLocalAIResponse(
 
   if (matchedItem) {
     return {
-      text: `🤖 [AI Chef] Yes, we have **${matchedItem.name}** (৳${matchedItem.price}) ready in the kitchen! ${matchedItem.description}`,
+      text: `🤖 [AI Chef] Yes, we have **${matchedItem.name}** (৳${matchedItem.price.toFixed(2)}) ready in the kitchen! ${matchedItem.description}`,
       recommendIds: [matchedItem.id],
     };
   }
 
-  // 2. Specific menu query check for non-available items (e.g., "do you have pizza" where pizza is not on menu)
+  // 3. Specific menu query check for non-available items (e.g., "do you have pizza" where pizza is not on menu)
   if (
     lowerMsg.includes("have") ||
     lowerMsg.includes("get") ||
@@ -95,7 +144,7 @@ function generateLocalAIResponse(
     };
   }
 
-  // 3. Stock queries
+  // 4. Stock queries
   if (lowerMsg.includes("out of stock") || lowerMsg.includes("available")) {
     const outOfStock = menuItems.filter((i) => i.status === "OUT_OF_STOCK");
     if (outOfStock.length > 0) {
@@ -118,24 +167,40 @@ function generateLocalAIResponse(
     };
   }
 
-  // 4. General Recommendation request
-  if (lowerMsg.includes("recommend") || lowerMsg.includes("suggest") || lowerMsg.includes("food") || lowerMsg.includes("eat")) {
-    const khichuri = inStock.find((item) => item.name.toLowerCase().includes("khichuri"));
-    const otherRecs = inStock.filter((item) => !item.name.toLowerCase().includes("khichuri"));
-    const recs = khichuri ? [khichuri, ...otherRecs.slice(0, 1)] : inStock.slice(0, 2);
+  // 5. General Recommendation request
+  if (lowerMsg.includes("recommend") || lowerMsg.includes("suggest") || lowerMsg.includes("food") || lowerMsg.includes("eat") || lowerMsg.includes("hungry")) {
+    const mains = inStock.filter(item => item.category === "MAIN_COURSES");
+    const nonMains = inStock.filter(item => item.category !== "MAIN_COURSES");
     
-    return {
-      text: "🤖 [AI Chef] Based on our live menu, I highly recommend our traditional **Khichuri** (৳100)! It is hot, fresh, and cooked with pure ghee. I also suggest trying our **" + (recs[1]?.name || "Chicken Biryani") + "**! You can order them directly using the button below:",
-      recommendIds: recs.map((r) => r.id),
-    };
+    const recs = [];
+    if (mains.length > 0) recs.push(mains[Math.floor(Math.random() * mains.length)]);
+    if (nonMains.length > 0) recs.push(nonMains[Math.floor(Math.random() * nonMains.length)]);
+    
+    // Fallback if we didn't get 2 items
+    if (recs.length < 2 && inStock.length > recs.length) {
+      for (const item of inStock) {
+        if (!recs.includes(item)) {
+          recs.push(item);
+          if (recs.length === 2) break;
+        }
+      }
+    }
+    
+    if (recs.length > 0) {
+      return {
+        text: `🤖 [AI Chef] Here is what I suggest from our live menu: try our delicious **${recs[0].name}** (৳${recs[0].price.toFixed(2)}) - ${recs[0].description}.` + 
+              (recs[1] ? ` For variety, you should also try our **${recs[1].name}** (৳${recs[1].price.toFixed(2)}).` : "") + 
+              ` You can order them directly below!`,
+        recommendIds: recs.map(r => r.id),
+      };
+    }
   }
 
-  // 5. Default Greeting
-  const khichuri = inStock.find((item) => item.name.toLowerCase().includes("khichuri"));
-  const fallbackRecs = khichuri ? [khichuri] : inStock.slice(0, 1);
+  // 6. Default Greeting
+  const sample = inStock.slice(0, 2);
   return {
-    text: `🤖 [AI Chef] Hello! I am the CampusBite AI Assistant. I can recommend dishes, check prices, or add items to your cart. How about some of our delicious hot **${fallbackRecs[0]?.name || "Khichuri"}**?`,
-    recommendIds: fallbackRecs.map((r) => r.id),
+    text: `🤖 [AI Chef] Hello! I am the CampusBite AI Assistant. I can recommend dishes, check prices, track your order status, or add items to your cart. Today we have delicious options like ${sample.map(s => `**${s.name}**`).join(" and ")} ready to order. What are you in the mood for today?`,
+    recommendIds: sample.map(r => r.id),
   };
 }
 
@@ -172,12 +237,12 @@ export async function POST(req: Request) {
     const session = await getSession();
 
     // Fetch latest active order for this table/customer to provide context to Gemini
-    if (tableNumber && tableNumber > 0) {
+    if ((tableNumber && tableNumber > 0) || session) {
       try {
         const allOrders = await dbService.getOrders();
         // Filter orders by table or customer identifier
         const tableOrders = allOrders.filter((o) => {
-          const matchTable = o.tableNumber === tableNumber;
+          const matchTable = tableNumber && tableNumber > 0 && o.tableNumber === tableNumber;
           const matchCustomer = session && (
             (session.email && o.customerEmail === session.email) ||
             (session.phone && o.customerPhone === session.phone)
@@ -197,7 +262,7 @@ export async function POST(req: Request) {
           }
         }
       } catch (err) {
-        console.error("Error fetching table orders for chat context:", err);
+        console.error("Error fetching orders for chat context:", err);
       }
     }
 
@@ -232,7 +297,7 @@ Guidelines:
 4. Do not make up items.
 5. If the user asks for recommendations, ask what they are in the mood for (e.g. savory, sweet, drinks) or recommend popular items.
 6. Support multilingual queries. If they chat in a language other than English, reply in that language.
-7. CRITICAL: Whenever the customer asks for a food recommendation or is looking for what to eat, you MUST suggest **Khichuri** (ID: item-khichuri) as your primary recommendation, describing it as hot, fresh, and cooked with pure ghee. You can also recommend one other in-stock item for variety.
+7. When recommending food, dynamically suggest in-stock items based on the user's specific request or query. If they ask for general recommendations, suggest a diverse set of 2-3 in-stock items from different categories (e.g. a main course and a drink/dessert). Explain why you recommended them based on their description. DO NOT force Khichuri in every recommendation unless they explicitly ask for it or it matches their mood/request.
 8. If the user asks about their order status, progress, or what they ordered, check the active order details provided in the context and answer accurately. Do NOT suggest Khichuri or recommend items when they are asking about order status, unless they explicitly ask for recommendations too. Be precise about their order status (e.g. RECEIVED, PREPARING, READY, COMPLETED, CANCELLED).
 
 CRITICAL FEATURE: If you mention or recommend any specific items from the menu context, you MUST append a tag at the very end of your response: \` [RECOMMEND: ID1, ID2]\` where the IDs match the exact database item IDs provided in the menu context (e.g., [RECOMMEND: item-1, item-2]). Do not invent IDs. If you do not recommend any specific items, do not include the tag.
@@ -253,7 +318,7 @@ CRITICAL FEATURE: If you mention or recommend any specific items from the menu c
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-3.5-flash",
       systemInstruction: systemInstruction,
     });
 
