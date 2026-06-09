@@ -61,42 +61,38 @@ function generateLocalAIResponse(
     }
   }
 
-  if (inStock.length === 0) {
+  // 1. Dynamic Item Search: Scan all items in the database to see if they match the user query
+  const matchedItem = inStock.find((item) => {
+    const itemNameLower = item.name.toLowerCase();
+    // Split item name into words (e.g. "Kacchi", "Biryani") and filter out short filler words
+    const words = itemNameLower.split(/\s+/).filter((w: string) => w.length >= 3);
+    return lowerMsg.includes(itemNameLower) || 
+           itemNameLower.includes(lowerMsg) ||
+           words.some((word: string) => lowerMsg.includes(word));
+  });
+
+  if (matchedItem) {
     return {
-      text: "🤖 [AI Chef] I'm sorry, our kitchen is currently completely out of stock on all menu items!",
+      text: `🤖 [AI Chef] Yes, we have **${matchedItem.name}** (৳${matchedItem.price}) ready in the kitchen! ${matchedItem.description}`,
+      recommendIds: [matchedItem.id],
+    };
+  }
+
+  // 2. Specific menu query check for non-available items (e.g., "do you have pizza" where pizza is not on menu)
+  if (
+    lowerMsg.includes("have") ||
+    lowerMsg.includes("get") ||
+    lowerMsg.includes("serve") ||
+    lowerMsg.includes("is there") ||
+    lowerMsg.includes("do you") ||
+    lowerMsg.includes("want to buy") ||
+    lowerMsg.includes("can i buy") ||
+    lowerMsg.includes("sell")
+  ) {
+    return {
+      text: `🤖 [AI Chef] I'm sorry, we don't serve that item on our menu. Please check out our live menu list or ask me for recommendations!`,
       recommendIds: [],
     };
-  }
-
-  // Find a matching item from the database menu list
-  const findItem = (keyword: string) => {
-    return inStock.find((item) => item.name.toLowerCase().includes(keyword));
-  };
-
-  // 1. General Recommendation request
-  if (lowerMsg.includes("recommend") || lowerMsg.includes("suggest") || lowerMsg.includes("food") || lowerMsg.includes("eat")) {
-    const khichuri = inStock.find((item) => item.name.toLowerCase().includes("khichuri"));
-    const otherRecs = inStock.filter((item) => !item.name.toLowerCase().includes("khichuri"));
-    const recs = khichuri ? [khichuri, ...otherRecs.slice(0, 1)] : inStock.slice(0, 2);
-    
-    return {
-      text: "🤖 [AI Chef] Based on our live menu, I highly recommend our traditional **Khichuri** (৳100)! It is hot, fresh, and cooked with pure ghee. I also suggest trying our **" + (recs[1]?.name || "Chicken Biryani") + "**! You can order them directly using the button below:",
-      recommendIds: recs.map((r) => r.id),
-    };
-  }
-
-  // 2. Specific item keywords search
-  const keywords = ["biryani", "burger", "fries", "chicken", "brownie", "ice cream", "tea", "coffee", "salad", "rice"];
-  for (const kw of keywords) {
-    if (lowerMsg.includes(kw)) {
-      const match = findItem(kw);
-      if (match) {
-        return {
-          text: `🤖 [AI Chef] Yes, we have **${match.name}** (৳${match.price}) ready in the kitchen! ${match.description}`,
-          recommendIds: [match.id],
-        };
-      }
-    }
   }
 
   // 3. Stock queries
@@ -115,7 +111,26 @@ function generateLocalAIResponse(
     }
   }
 
-  // 4. Default Greeting
+  if (inStock.length === 0) {
+    return {
+      text: "🤖 [AI Chef] I'm sorry, our kitchen is currently completely out of stock on all menu items!",
+      recommendIds: [],
+    };
+  }
+
+  // 4. General Recommendation request
+  if (lowerMsg.includes("recommend") || lowerMsg.includes("suggest") || lowerMsg.includes("food") || lowerMsg.includes("eat")) {
+    const khichuri = inStock.find((item) => item.name.toLowerCase().includes("khichuri"));
+    const otherRecs = inStock.filter((item) => !item.name.toLowerCase().includes("khichuri"));
+    const recs = khichuri ? [khichuri, ...otherRecs.slice(0, 1)] : inStock.slice(0, 2);
+    
+    return {
+      text: "🤖 [AI Chef] Based on our live menu, I highly recommend our traditional **Khichuri** (৳100)! It is hot, fresh, and cooked with pure ghee. I also suggest trying our **" + (recs[1]?.name || "Chicken Biryani") + "**! You can order them directly using the button below:",
+      recommendIds: recs.map((r) => r.id),
+    };
+  }
+
+  // 5. Default Greeting
   const khichuri = inStock.find((item) => item.name.toLowerCase().includes("khichuri"));
   const fallbackRecs = khichuri ? [khichuri] : inStock.slice(0, 1);
   return {

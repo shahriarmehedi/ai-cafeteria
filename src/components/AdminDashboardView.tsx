@@ -82,8 +82,10 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
   // Generate QR Code on-the-fly
   const handleOpenQR = async (table: Table) => {
     setQrModalTable(table);
+    setQrCodeUrl(""); // Clear previous QR code to prevent showing stale image
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+      // Prioritize window.location.origin so mobile devices on the same LAN/Wi-Fi can resolve the IP correctly
+      const baseUrl = window.location.origin || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
       const targetUrl = `${baseUrl}/table/${table.number}`;
       const dataUrl = await QRCode.toDataURL(targetUrl, {
         width: 280,
@@ -578,7 +580,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
           <div className="glass-panel animate-fade-in" style={{ width: "90%", maxWidth: "340px", padding: "24px", textAlign: "center", background: "var(--bg-secondary)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <h3 style={{ fontSize: "15px", fontWeight: 700 }}>Table {qrModalTable.number} QR Link</h3>
-              <button onClick={() => setQrModalTable(null)} className="btn btn-secondary btn-icon btn-sm" style={{ width: "30px", height: "30px" }}>
+              <button onClick={() => { setQrModalTable(null); setQrCodeUrl(""); }} className="btn btn-secondary btn-icon btn-sm" style={{ width: "30px", height: "30px" }}>
                 <X size={14} />
               </button>
             </div>
