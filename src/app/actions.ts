@@ -106,6 +106,29 @@ export async function createOrderAction(orderData: {
   return { success: true, order };
 }
 
+// Get Customer Orders Action
+export async function getCustomerOrdersAction() {
+  const session = await getSession();
+  if (!session) {
+    return { success: false, error: "Authentication required. Please log in first." };
+  }
+
+  try {
+    const allOrders = await dbService.getOrders();
+    const customerOrders = allOrders.filter((o) => {
+      const matchCustomer = session && (
+        (session.email && o.customerEmail === session.email) ||
+        (session.phone && o.customerPhone === session.phone)
+      );
+      return !!matchCustomer;
+    });
+
+    return { success: true, orders: customerOrders };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to fetch orders" };
+  }
+}
+
 // Update Order Status Action (Kitchen / Admin)
 export async function updateOrderStatusAction(orderId: string, status: string) {
   const session = await getSession();

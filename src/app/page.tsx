@@ -1,10 +1,33 @@
 import { getSession } from "@/lib/session";
 import { dbService } from "@/lib/dbService";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Coffee, ChefHat, Shield, QrCode, ArrowRight } from "lucide-react";
 
 export default async function Home() {
   const session = await getSession();
+
+  // If customer is logged in, find their latest ordered table and redirect directly to it
+  if (session && session.role === "CUSTOMER") {
+    try {
+      const allOrders = await dbService.getOrders();
+      const customerOrders = allOrders.filter((o) => {
+        return !!(
+          (session.email && o.customerEmail === session.email) ||
+          (session.phone && o.customerPhone === session.phone)
+        );
+      });
+
+      if (customerOrders.length > 0) {
+        customerOrders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const latestOrder = customerOrders[0];
+        redirect(`/table/${latestOrder.tableNumber}`);
+      }
+    } catch (err) {
+      console.error("Error finding customer's last ordered table:", err);
+    }
+  }
+
   const tables = await dbService.getTables();
 
   return (

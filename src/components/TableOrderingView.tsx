@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MenuItem } from "@/lib/mockDb";
 import { SessionUser } from "@/lib/session";
-import { createOrderAction } from "@/app/actions";
+import { createOrderAction, getCustomerOrdersAction } from "@/app/actions";
 import {
   Search,
   ShoppingCart,
@@ -126,25 +126,27 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
   
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Load orders history from local storage
+  // Load orders history from database
   const loadPastOrders = async () => {
-    const savedOrderIdsStr = localStorage.getItem(`placed_orders_list`);
-    if (savedOrderIdsStr) {
-      try {
-        const ids: string[] = JSON.parse(savedOrderIdsStr);
-        const fetched = await Promise.all(
-          ids.map(async (id) => {
-            const res = await fetch(`/api/order-status?id=${id}`);
-            if (res.ok) {
-              return await res.json();
-            }
-            return null;
-          })
+    try {
+      const res = await getCustomerOrdersAction();
+      if (res.success && res.orders) {
+        setPastOrders(res.orders);
+        
+        // Find the most recent active order (where status is RECEIVED, PREPARING, or READY)
+        const active = res.orders.filter(
+          (o) => o.status !== "COMPLETED" && o.status !== "CANCELLED"
         );
-        setPastOrders(fetched.filter((o) => o !== null));
-      } catch (e) {
-        console.error("Failed loading order history", e);
+        if (active.length > 0) {
+          // Sort by date desc (most recent first)
+          active.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setPlacedOrder(active[0]);
+        } else {
+          setPlacedOrder(null);
+        }
       }
+    } catch (e) {
+      console.error("Failed loading order history from db", e);
     }
   };
 
@@ -158,17 +160,6 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
   // Initialize unique chat session ID and load past orders
   useEffect(() => {
     setChatSessionId("session-" + Math.random().toString(36).substring(2, 9));
-    
-    // Check local storage for active orders at this table
-    const savedOrder = localStorage.getItem(`active_order_table_${tableNumber}`);
-    if (savedOrder) {
-      try {
-        setPlacedOrder(JSON.parse(savedOrder));
-      } catch (e) {
-        console.error("Failed to parse saved active order", e);
-      }
-    }
-
     loadPastOrders();
   }, [tableNumber]);
 
@@ -183,9 +174,8 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
           const updated = await res.json();
           if (updated.status !== placedOrder.status) {
             setPlacedOrder(updated);
-            localStorage.setItem(`active_order_table_${tableNumber}`, JSON.stringify(updated));
             // Sync status inside history list
-            setPastOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+            setPastOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o)));
           }
         }
       } catch (e) {
@@ -194,7 +184,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [placedOrder, tableNumber]);
+  }, [placedOrder]);
 
   // Scroll to bottom of chat
   useEffect(() => {
@@ -261,17 +251,6 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
 
       if (res.success && res.order) {
         setPlacedOrder(res.order);
-        // Persist active order in local storage
-        localStorage.setItem(`active_order_table_${tableNumber}`, JSON.stringify(res.order));
-        
-        // Append order to complete history list
-        const existingIdsStr = localStorage.getItem(`placed_orders_list`);
-        const existingIds = existingIdsStr ? JSON.parse(existingIdsStr) : [];
-        if (!existingIds.includes(res.order.id)) {
-          const nextIds = [res.order.id, ...existingIds];
-          localStorage.setItem(`placed_orders_list`, JSON.stringify(nextIds));
-        }
-
         setCart([]);
         setSpecialInstructions("");
         setIsCartOpen(false);
@@ -295,7 +274,6 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
       if (res.ok) {
         const updated = await res.json();
         setPlacedOrder(updated);
-        localStorage.setItem(`active_order_table_${tableNumber}`, JSON.stringify(updated));
         await loadPastOrders();
       }
     } catch (e) {
@@ -313,7 +291,6 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
         // If this is the active order, update it too
         if (placedOrder && placedOrder.id === orderId) {
           setPlacedOrder(updated);
-          localStorage.setItem(`active_order_table_${tableNumber}`, JSON.stringify(updated));
         }
       }
     } catch (e) {
@@ -323,7 +300,6 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
 
   // Clear active order tracking
   const handleClearOrderTracking = () => {
-    localStorage.removeItem(`active_order_table_${tableNumber}`);
     setPlacedOrder(null);
   };
 

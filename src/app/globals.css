@@ -494,3 +494,14 @@ body {
 .step-node.completed .step-label {
   color: var(--success);
 }
+
+/* Responsive spacing optimizations for mobile viewports */
+@media (max-width: 480px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  .mobile-navbar {
+    padding: 12px 12px !important;
+  }
+}
+

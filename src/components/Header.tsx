@@ -55,7 +55,7 @@ export default async function Header() {
                 </Link>
               )}
               {session.role === "CUSTOMER" && (
-                <span className="badge badge-info">
+                <span className="badge badge-info hide-mobile">
                   <ClipboardList size={12} />
                   Customer
                 </span>
