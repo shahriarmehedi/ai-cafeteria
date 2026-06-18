@@ -303,6 +303,38 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
     setPlacedOrder(null);
   };
 
+  // Direct instant ordering from recommended cards inside the chat bubble
+  const handleDirectOrder = async (itemId: string, itemName: string, price: number) => {
+    setChatLoading(true);
+    try {
+      const res = await createOrderAction({
+        tableNumber,
+        specialInstructions: "",
+        items: [{
+          menuItemId: itemId,
+          menuItemName: itemName,
+          price: price,
+          quantity: 1
+        }]
+      });
+
+      if (res.success && res.order) {
+        setPlacedOrder(res.order);
+        setCart([]); // Clear cart
+        setIsChatOpen(false); // Close chat drawer
+        setIsCartOpen(false); // Close cart drawer
+        await loadPastOrders();
+      } else {
+        alert(res.error || "Failed to place order. Please try again.");
+      }
+    } catch (err) {
+      console.error("Direct order execution error:", err);
+      alert("Error placing order. Please try again.");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   // Chat API call
   const sendChatMessage = async (text: string) => {
     setChatLoading(true);
@@ -320,6 +352,15 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
       if (res.ok) {
         const data = await res.json();
         setChatMessages((prev) => [...prev, { role: "model", content: data.text }]);
+        
+        // Direct ordering integration: if chatbot ordered directly in database
+        if (data.orderPlaced && data.order) {
+          setPlacedOrder(data.order);
+          setCart([]);
+          setIsChatOpen(false); // Automatically close chat side-drawer
+          setIsCartOpen(false); // Automatically close cart drawer
+          await loadPastOrders();
+        }
       } else {
         setChatMessages((prev) => [...prev, { role: "model", content: "I had trouble processing that. Please try again." }]);
       }
@@ -513,31 +554,34 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
       </div>
 
       {/* Prominent Floating Action Button (FAB) for AI Assistant */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        style={{
-          position: "fixed",
-          bottom: "82px",
-          right: "16px",
-          background: "var(--primary)",
-          color: "#ffffff",
-          border: "none",
-          borderRadius: "24px",
-          padding: "10px 18px",
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          boxShadow: "0 6px 20px rgba(79, 70, 229, 0.4)",
-          cursor: "pointer",
-          zIndex: 95,
-          fontWeight: 600,
-          fontSize: "13px",
-          animation: "pulse-glow 2s infinite",
-        }}
-      >
-        <Sparkles size={16} />
-        <span>Ask AI Chef</span>
-      </button>
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="ai-chef-fab"
+          style={{
+            position: "fixed",
+            bottom: "82px",
+            right: "16px",
+            background: "var(--primary)",
+            color: "#ffffff",
+            border: "none",
+            borderRadius: "24px",
+            padding: "10px 18px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            boxShadow: "0 6px 20px rgba(79, 70, 229, 0.4)",
+            cursor: "pointer",
+            zIndex: 95,
+            fontWeight: 600,
+            fontSize: "13px",
+            animation: "pulse-glow 2s infinite",
+          }}
+        >
+          <Sparkles size={16} />
+          <span>Ask AI Chef</span>
+        </button>
+      )}
 
       {/* Bottom Sticky Basket Bar */}
       <div
@@ -579,8 +623,8 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
 
       {/* PAST ORDERS HISTORY MODAL */}
       {isHistoryOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", justifyContent: "center", alignItems: "flex-end", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-          <div className="animate-slide-up" style={{ width: "100%", maxWidth: "480px", background: "var(--bg-secondary)", borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)", borderTop: "1px solid var(--border)", padding: "20px 16px 28px 16px", maxHeight: "80vh", overflowY: "auto" }}>
+        <div className="drawer-overlay">
+          <div className="drawer-content animate-slide-up" style={{ maxHeight: "80vh" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <ClipboardList size={18} style={{ color: "var(--primary)" }} />
@@ -632,8 +676,8 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
 
       {/* CART DRAWER MODAL */}
       {isCartOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", justifyContent: "center", alignItems: "flex-end", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-          <div className="animate-slide-up" style={{ width: "100%", maxWidth: "480px", background: "var(--bg-secondary)", borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)", borderTop: "1px solid var(--border)", padding: "20px 16px 28px 16px", maxHeight: "85vh", overflowY: "auto" }}>
+        <div className="drawer-overlay">
+          <div className="drawer-content animate-slide-up" style={{ maxHeight: "85vh" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <h2 style={{ fontSize: "16px", fontWeight: 700 }}>Your Selected Food</h2>
               <button onClick={() => setIsCartOpen(false)} className="btn btn-secondary btn-icon btn-sm" style={{ width: "30px", height: "30px" }}>
@@ -723,8 +767,8 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
 
       {/* AI CHATBOT SIDE SHEET */}
       {isChatOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", justifyContent: "center", alignItems: "flex-end", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-          <div className="animate-slide-up" style={{ width: "100%", maxWidth: "480px", background: "var(--bg-secondary)", borderTopLeftRadius: "var(--radius-lg)", borderTopRightRadius: "var(--radius-lg)", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", height: "75vh" }}>
+        <div className="chat-drawer-overlay">
+          <div className="chat-drawer-content animate-slide-up">
             
             {/* Chat Header */}
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -769,10 +813,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                             <ChatRecommendCard
                               key={item.id}
                               item={item}
-                              onAdd={() => {
-                                addToCart(item);
-                                setTimeout(() => setIsCartOpen(true), 300);
-                              }}
+                              onAdd={() => handleDirectOrder(item.id, item.name, item.price)}
                             />
                           );
                         })}

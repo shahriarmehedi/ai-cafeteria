@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbService } from "@/lib/dbService";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, FunctionDeclaration } from "@google/generative-ai";
 import { getSession } from "@/lib/session";
 
 // Dynamic local AI assistant that ONLY recommends in-stock items present in the database menu list
@@ -9,11 +9,107 @@ function generateLocalAIResponse(
   menuItems: any[],
   activeOrder: any | null,
   tableNumber: number
-): { text: string; recommendIds: string[] } {
+): { text: string; recommendIds: string[]; shouldPlaceOrder?: boolean } {
   const lowerMsg = message.toLowerCase();
   const inStock = menuItems.filter((item) => item.status === "IN_STOCK");
 
-  // 0. Order Status Query (highest priority check)
+  // 0. Direct Ordering intent check (e.g. "order tea", "I want to buy burger" in fallback mode)
+  const isOrderRequest = lowerMsg.includes("order") || lowerMsg.includes("buy") || lowerMsg.includes("purchase") || lowerMsg.includes("want a") || lowerMsg.includes("want some") || lowerMsg.includes("get me");
+  if (isOrderRequest) {
+    const orderedItems = inStock.filter(item => {
+      const name = item.name.toLowerCase();
+      const desc = item.description.toLowerCase();
+      
+      // Direct matches
+      if (lowerMsg.includes(name)) return true;
+      
+      // Keyword mappings
+      if (lowerMsg.includes("tea") || lowerMsg.includes("chai")) {
+        return name.includes("tea") || name.includes("chai") || desc.includes("tea") || desc.includes("chai");
+      }
+      if (lowerMsg.includes("coffee")) {
+        return name.includes("coffee") || desc.includes("coffee");
+      }
+      if (lowerMsg.includes("burger")) {
+        return name.includes("burger") || desc.includes("burger");
+      }
+      if (lowerMsg.includes("fries")) {
+        return name.includes("fries") || desc.includes("fries");
+      }
+      if (lowerMsg.includes("biryani")) {
+        return name.includes("biryani") || desc.includes("biryani");
+      }
+      if (lowerMsg.includes("khichuri")) {
+        return name.includes("khichuri") || desc.includes("khichuri");
+      }
+      if (lowerMsg.includes("brownie")) {
+        return name.includes("brownie") || desc.includes("brownie");
+      }
+      if (lowerMsg.includes("ice cream") || lowerMsg.includes("sundae")) {
+        return name.includes("ice cream") || name.includes("sundae") || desc.includes("ice cream") || desc.includes("sundae");
+      }
+      if (lowerMsg.includes("chicken")) {
+        return name.includes("chicken");
+      }
+      
+      const words = lowerMsg.split(/\s+/).filter(w => w.length >= 3 && w !== "order" && w !== "want" && w !== "some" && w !== "please");
+      return words.some(word => name.includes(word));
+    });
+
+    if (orderedItems.length > 0) {
+      const itemToOrder = orderedItems[0];
+      return {
+        text: `🤖 [AI Chef] Placing your order for: ${itemToOrder.name}`,
+        recommendIds: [itemToOrder.id],
+        shouldPlaceOrder: true
+      };
+    }
+  }
+
+  // 0.1 Breakfast/Lunch/Dinner queries
+  if (lowerMsg.includes("breakfast") || lowerMsg.includes("morning")) {
+    const breakfastItems = inStock.filter(item => {
+      const name = item.name.toLowerCase();
+      const desc = item.description.toLowerCase();
+      const cat = item.category.toLowerCase();
+      return (
+        name.includes("chai") || name.includes("coffee") || name.includes("tea") || name.includes("egg") || name.includes("toast") || name.includes("bread") || name.includes("paratha") ||
+        desc.includes("breakfast") || desc.includes("morning") || desc.includes("tea") || desc.includes("coffee") ||
+        cat === "beverages"
+      );
+    });
+    if (breakfastItems.length > 0) {
+      const listStr = breakfastItems.map(item => `• **${item.name}** (৳${item.price.toFixed(2)}) - ${item.description}`).join("\n");
+      return {
+        text: `🤖 [AI Chef] Analyzing our menu, I've found these items suitable for breakfast:\n\n${listStr}\n\nWhat would you like me to order for you?`,
+        recommendIds: breakfastItems.map(i => i.id)
+      };
+    }
+  }
+
+  if (lowerMsg.includes("lunch") || lowerMsg.includes("dinner") || lowerMsg.includes("night") || lowerMsg.includes("afternoon") || lowerMsg.includes("meal")) {
+    const mainItems = inStock.filter(item => item.category === "MAIN_COURSES");
+    if (mainItems.length > 0) {
+      const listStr = mainItems.map(item => `• **${item.name}** (৳${item.price.toFixed(2)}) - ${item.description}`).join("\n");
+      return {
+        text: `🤖 [AI Chef] For lunch or dinner, we have these main courses available:\n\n${listStr}\n\nWhat would you like me to order for you?`,
+        recommendIds: mainItems.map(i => i.id)
+      };
+    }
+  }
+
+  if (lowerMsg.includes("snack") || lowerMsg.includes("evening") || lowerMsg.includes("bite")) {
+    const snackItems = inStock.filter(item => item.category === "APPETIZERS" || item.category === "DESSERTS");
+    if (snackItems.length > 0) {
+      const listStr = snackItems.map(item => `• **${item.name}** (৳${item.price.toFixed(2)}) - ${item.description}`).join("\n");
+      return {
+        text: `🤖 [AI Chef] For snacks or desserts, here are some great options:\n\n${listStr}\n\nWhat would you like me to order for you?`,
+        recommendIds: snackItems.map(i => i.id)
+      };
+    }
+  }
+
+  // 0.2 Order Status Query (highest priority check)
   if (
     lowerMsg.includes("status") ||
     lowerMsg.includes("order") ||
@@ -210,6 +306,7 @@ export async function POST(req: Request) {
   let tableNumber = 0;
   let menuItems: any[] = [];
   let activeOrder: any = null;
+  let session: any = null;
 
   try {
     const body = await req.json();
@@ -234,7 +331,7 @@ export async function POST(req: Request) {
       .join("\n");
 
     // Get session to help query active order for customer
-    const session = await getSession();
+    session = await getSession();
 
     // Fetch latest active order for this table/customer to provide context to Gemini
     if ((tableNumber && tableNumber > 0) || session) {
@@ -299,27 +396,91 @@ Guidelines:
 6. Support multilingual queries. If they chat in a language other than English, reply in that language.
 7. When recommending food, dynamically suggest in-stock items based on the user's specific request or query. If they ask for general recommendations, suggest a diverse set of 2-3 in-stock items from different categories (e.g. a main course and a drink/dessert). Explain why you recommended them based on their description. DO NOT force Khichuri in every recommendation unless they explicitly ask for it or it matches their mood/request.
 8. If the user asks about their order status, progress, or what they ordered, check the active order details provided in the context and answer accurately. Do NOT suggest Khichuri or recommend items when they are asking about order status, unless they explicitly ask for recommendations too. Be precise about their order status (e.g. RECEIVED, PREPARING, READY, COMPLETED, CANCELLED).
-
-CRITICAL FEATURE: If you mention or recommend any specific items from the menu context, you MUST append a tag at the very end of your response: \` [RECOMMEND: ID1, ID2]\` where the IDs match the exact database item IDs provided in the menu context (e.g., [RECOMMEND: item-1, item-2]). Do not invent IDs. If you do not recommend any specific items, do not include the tag.
+9. MEAL TIMES CLASSIFICATION: When the user asks about available items for a specific meal time (e.g. breakfast, morning, lunch, dinner, afternoon, night, snack, evening):
+   - You MUST analyze the entire live menu and classify the items yourself based on their characteristics, categories, descriptions, or typical dining habits:
+     * Breakfast / Morning: Suggest beverages (like tea, Masala Chai, coffee, Cold Coffee) and any lightweight breakfast-appropriate items.
+     * Lunch / Dinner / Main Meals: Suggest main courses (like Chicken Biryani, Khichuri, Crispy Chicken Burger) or heavy, filling dishes.
+     * Snacks / Appetizers / Evening: Suggest appetizers (like Loaded Cheesy Fries, Fried Chicken) and desserts.
+   - Do NOT say that we do not serve breakfast, lunch, or dinner.
+   - List ALL applicable items that are currently IN_STOCK. Do not list OUT_OF_STOCK items.
+   - For each recommended item, explain briefly why it is appropriate for that meal time.
+10. TOOL USE: You have the 'placeOrder' tool. Whenever the customer explicitly tells you to order, buy, or purchase one or more items (e.g., "I want to order tea", "please order a burger", "buy 2 fries"), you MUST call the 'placeOrder' tool with the resolved database item IDs and quantities.
+    - If the user uses a generic term (e.g. "tea" or "chai" for "Masala Chai", "coffee" for "Cold Coffee", "burger" for "Crispy Chicken Burger", "fries" for "Loaded Cheesy Fries", "brownie" for "Chocolate Fudge Brownie"), map it to the closest matching in-stock menu item ID from the live menu context.
 `;
 
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // Tool Declaration for Direct Ordering via Chat
+    const placeOrderDeclaration: FunctionDeclaration = {
+      name: "placeOrder",
+      description: "Place an order for menu items directly. Call this when the user explicitly requests to order, buy, or purchase one or more items (e.g. 'I want to order tea' or 'please order 1 biryani').",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          items: {
+            type: SchemaType.ARRAY,
+            description: "The list of items to order.",
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                itemId: { type: SchemaType.STRING, description: "The database ID of the menu item (e.g. item-khichuri)." },
+                quantity: { type: SchemaType.INTEGER, description: "The quantity of this item to order. Default is 1 if not specified." }
+              },
+              required: ["itemId", "quantity"]
+            }
+          },
+          specialInstructions: { type: SchemaType.STRING, description: "Any special cooking instructions or requests (e.g., no sugar, extra spicy)." }
+        },
+        required: ["items"]
+      }
+    };
+
     if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE" || apiKey.trim() === "") {
       const localRes = generateLocalAIResponse(message, menuItems, activeOrder, tableNumber);
       let responseText = localRes.text;
-      if (localRes.recommendIds.length > 0) {
+      if (localRes.recommendIds.length > 0 && !localRes.shouldPlaceOrder) {
         responseText += ` [RECOMMEND: ${localRes.recommendIds.join(", ")}]`;
       }
+      
+      // Handle local fallback ordering
+      if (localRes.shouldPlaceOrder && localRes.recommendIds.length > 0) {
+        const orderItems = [];
+        for (const itemId of localRes.recommendIds) {
+          const item = menuItems.find(m => m.id === itemId);
+          if (item && item.status === "IN_STOCK") {
+            orderItems.push({
+              menuItemId: item.id,
+              menuItemName: item.name,
+              price: item.price,
+              quantity: 1
+            });
+          }
+        }
+        if (orderItems.length > 0) {
+          const newOrder = await dbService.createOrder({
+            tableNumber: tableNumber,
+            customerEmail: session?.email || null,
+            customerPhone: session?.phone || null,
+            customerName: session?.name || "Table " + tableNumber,
+            specialInstructions: null,
+            items: orderItems,
+          });
+          responseText = `🤖 [AI Chef] I've placed your order directly! Your order number is **${newOrder.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
+          await dbService.createChatMessage(sessionId, "model", responseText);
+          return NextResponse.json({ text: responseText, orderPlaced: true, order: newOrder, isMock: true });
+        }
+      }
+
       await dbService.createChatMessage(sessionId, "model", responseText);
       return NextResponse.json({ text: responseText, isMock: true });
     }
 
-    // Initialize Gemini API
+    // Initialize Gemini API (using stable gemini-2.5-flash)
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: systemInstruction,
+      tools: [{ functionDeclarations: [placeOrderDeclaration] }],
     });
 
     // Retrieve full chat history
@@ -341,6 +502,48 @@ CRITICAL FEATURE: If you mention or recommend any specific items from the menu c
 
     // Send message and get response
     const result = await chat.sendMessage(message);
+    
+    // Check if the response requested a function call
+    const functionCalls = result.response.functionCalls();
+    if (functionCalls && functionCalls.length > 0) {
+      const call = functionCalls[0];
+      if (call.name === "placeOrder") {
+        const args: any = call.args;
+        const orderItems = [];
+        for (const orderItem of args.items) {
+          const item = menuItems.find(m => m.id === orderItem.itemId);
+          if (item && item.status === "IN_STOCK") {
+            orderItems.push({
+              menuItemId: item.id,
+              menuItemName: item.name,
+              price: item.price,
+              quantity: orderItem.quantity || 1
+            });
+          }
+        }
+        
+        if (orderItems.length > 0) {
+          const newOrder = await dbService.createOrder({
+            tableNumber: tableNumber,
+            customerEmail: session?.email || null,
+            customerPhone: session?.phone || null,
+            customerName: session?.name || "Table " + tableNumber,
+            specialInstructions: args.specialInstructions || null,
+            items: orderItems,
+          });
+          
+          const confirmText = `🤖 [AI Chef] I've placed your order directly! Your order number is **${newOrder.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
+          await dbService.createChatMessage(sessionId, "model", confirmText);
+          
+          return NextResponse.json({
+            text: confirmText,
+            orderPlaced: true,
+            order: newOrder
+          });
+        }
+      }
+    }
+
     const responseText = result.response.text();
 
     // Save model response to database
@@ -353,10 +556,42 @@ CRITICAL FEATURE: If you mention or recommend any specific items from the menu c
     // Failsafe: Generate a local response instead of throwing a 500 error
     const localRes = generateLocalAIResponse(message, menuItems, activeOrder, tableNumber);
     let responseText = localRes.text;
-    if (localRes.recommendIds.length > 0) {
+    if (localRes.recommendIds.length > 0 && !localRes.shouldPlaceOrder) {
       responseText += ` [RECOMMEND: ${localRes.recommendIds.join(", ")}]`;
     }
     
+    if (localRes.shouldPlaceOrder && localRes.recommendIds.length > 0) {
+      const orderItems = [];
+      for (const itemId of localRes.recommendIds) {
+        const item = menuItems.find(m => m.id === itemId);
+        if (item && item.status === "IN_STOCK") {
+          orderItems.push({
+            menuItemId: item.id,
+            menuItemName: item.name,
+            price: item.price,
+            quantity: 1
+          });
+        }
+      }
+      if (orderItems.length > 0) {
+        const newOrder = await dbService.createOrder({
+          tableNumber: tableNumber,
+          customerEmail: session?.email || null,
+          customerPhone: session?.phone || null,
+          customerName: session?.name || "Table " + tableNumber,
+          specialInstructions: null,
+          items: orderItems,
+        });
+        responseText = `🤖 [AI Chef] I've placed your order directly! Your order number is **${newOrder.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
+        try {
+          await dbService.createChatMessage(sessionId, "model", responseText);
+        } catch (dbErr) {
+          console.error("Failed to write fallback message to db", dbErr);
+        }
+        return NextResponse.json({ text: responseText, orderPlaced: true, order: newOrder, isMock: true });
+      }
+    }
+
     try {
       await dbService.createChatMessage(sessionId, "model", responseText);
     } catch (dbErr) {
