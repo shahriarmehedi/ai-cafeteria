@@ -57,7 +57,7 @@ function ChatRecommendCard({ item, onAdd }: { item: MenuItem; onAdd: () => void 
   return (
     <div
       style={{
-        flex: "0 0 220px",
+        flex: "0 0 250px",
         padding: "10px 12px",
         background: "rgba(255, 255, 255, 0.03)",
         border: "1px solid var(--border)",
@@ -72,7 +72,7 @@ function ChatRecommendCard({ item, onAdd }: { item: MenuItem; onAdd: () => void 
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <span style={{ fontSize: "20px" }}>{item.image || "🍔"}</span>
         <div style={{ textAlign: "left" }}>
-          <strong style={{ fontSize: "12px", display: "block", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "90px" }}>{item.name}</strong>
+          <strong style={{ fontSize: "12px", display: "block", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }} title={item.name}>{item.name}</strong>
           <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block" }}>৳{item.price.toFixed(2)}</span>
         </div>
       </div>
@@ -361,6 +361,12 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
           setIsCartOpen(false); // Automatically close cart drawer
           await loadPastOrders();
         }
+
+        // Direct refund or escalation updates
+        if (data.orderUpdated && data.order) {
+          setPlacedOrder(data.order);
+          await loadPastOrders();
+        }
       } else {
         setChatMessages((prev) => [...prev, { role: "model", content: "I had trouble processing that. Please try again." }]);
       }
@@ -443,7 +449,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
               <button onClick={handleRefreshOrderStatus} className="btn btn-secondary btn-icon btn-sm" style={{ width: "30px", height: "30px", borderRadius: "8px" }} title="Update Status">
                 <RefreshCw size={12} />
               </button>
-              {(placedOrder.status === "COMPLETED" || placedOrder.status === "CANCELLED") && (
+              {(placedOrder.status === "COMPLETED" || placedOrder.status === "CANCELLED" || placedOrder.refundStatus === "REFUNDED" || placedOrder.refundStatus === "REFUND_DENIED") && (
                 <button onClick={handleClearOrderTracking} className="btn btn-secondary btn-icon btn-sm" style={{ width: "30px", height: "30px", borderRadius: "8px" }}>
                   <X size={12} />
                 </button>
@@ -451,7 +457,47 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
             </div>
           </div>
 
-          {placedOrder.status !== "CANCELLED" ? (
+          {placedOrder.refundStatus ? (
+            <div style={{ padding: "0 10px 14px 10px" }}>
+              {placedOrder.refundStatus === "REFUNDED" && (
+                <div style={{ background: "var(--success-light)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "var(--radius-md)", padding: "14px", textAlign: "center" }}>
+                  <span style={{ fontSize: "20px", display: "block", marginBottom: "4px" }}>💸</span>
+                  <strong style={{ color: "var(--success)", fontSize: "13px", display: "block" }}>Order Refunded Successfully</strong>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "12px", marginTop: "4px" }}>
+                    ৳{placedOrder.refundAmount?.toFixed(2)} has been credited back to your account.
+                  </p>
+                  {placedOrder.refundReason && (
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "6px", fontStyle: "italic" }}>
+                      Reason: {placedOrder.refundReason}
+                    </span>
+                  )}
+                </div>
+              )}
+              {placedOrder.refundStatus === "ESCALATED" && (
+                <div style={{ background: "var(--warning-light)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "var(--radius-md)", padding: "14px", textAlign: "center" }} className="animate-pulse-light">
+                  <span style={{ fontSize: "20px", display: "block", marginBottom: "4px" }}>⏳</span>
+                  <strong style={{ color: "var(--warning)", fontSize: "13px", display: "block" }}>Escalated to Human Review</strong>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "12px", marginTop: "4px" }}>
+                    A manager is reviewing your refund request. We will update you shortly.
+                  </p>
+                  {placedOrder.refundReason && (
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "6px", fontStyle: "italic" }}>
+                      Reason: {placedOrder.refundReason}
+                    </span>
+                  )}
+                </div>
+              )}
+              {placedOrder.refundStatus === "REFUND_DENIED" && (
+                <div style={{ background: "var(--danger-light)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: "var(--radius-md)", padding: "14px", textAlign: "center" }}>
+                  <span style={{ fontSize: "20px", display: "block", marginBottom: "4px" }}>❌</span>
+                  <strong style={{ color: "var(--danger)", fontSize: "13px", display: "block" }}>Refund Request Denied</strong>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "12px", marginTop: "4px" }}>
+                    Our support manager reviewed your request and was unable to approve a refund at this time.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : placedOrder.status !== "CANCELLED" ? (
             <div style={{ padding: "0 10px 24px 10px" }}>
               <div className="order-steps">
                 <div className="order-steps-progress" style={{ width: getStepProgressWidth(placedOrder.status) }}></div>
@@ -641,14 +687,24 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                   <div key={order.id} style={{ padding: "12px", background: "rgba(255, 255, 255, 0.01)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                       <span style={{ fontSize: "13px", fontWeight: 700 }}>Order: {order.orderNumber}</span>
-                      <span className={`badge ${
-                        order.status === "RECEIVED" ? "badge-info" :
-                        order.status === "PREPARING" ? "badge-warning" :
-                        order.status === "READY" ? "badge-success" :
-                        order.status === "COMPLETED" ? "badge-success" : "badge-danger"
-                      }`}>
-                        {order.status}
-                      </span>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <span className={`badge ${
+                          order.status === "RECEIVED" ? "badge-info" :
+                          order.status === "PREPARING" ? "badge-warning" :
+                          order.status === "READY" ? "badge-success" :
+                          order.status === "COMPLETED" ? "badge-success" : "badge-danger"
+                        }`}>
+                          {order.status}
+                        </span>
+                        {order.refundStatus && (
+                          <span className={`badge ${
+                            order.refundStatus === "REFUNDED" ? "badge-success" :
+                            order.refundStatus === "ESCALATED" ? "badge-warning" : "badge-danger"
+                          }`} style={{ borderStyle: "dashed" }}>
+                            {order.refundStatus}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div style={{ fontSize: "11px", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.03)", paddingTop: "6px", marginTop: "6px" }}>
@@ -785,46 +841,71 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
             <div className="chat-messages" style={{ padding: "16px" }}>
               {chatMessages.map((msg, i) => {
                 const { cleanText, ids } = parseRecommendIds(msg.content);
+                const isUser = msg.role === "user";
+                
                 return (
                   <div
                     key={i}
                     style={{
                       display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
-                      alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-                      maxWidth: "85%",
+                      gap: "10px",
+                      alignItems: "flex-start",
+                      width: "100%",
+                      alignSelf: isUser ? "flex-end" : "flex-start",
+                      justifyContent: isUser ? "flex-end" : "flex-start",
+                      marginBottom: "4px"
                     }}
                   >
+                    {!isUser && (
+                      <div className="chat-avatar chat-avatar-ai" title="AI Chef">👨‍🍳</div>
+                    )}
+
                     <div
-                      className={`chat-bubble ${msg.role === "user" ? "chat-bubble-user" : "chat-bubble-ai"}`}
-                      style={{ width: "100%", alignSelf: "unset", whiteSpace: "pre-line" }}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        maxWidth: "80%",
+                        alignItems: isUser ? "flex-end" : "flex-start",
+                      }}
                     >
-                      {renderFormattedText(cleanText)}
+                      <div
+                        className={`chat-bubble ${isUser ? "chat-bubble-user" : "chat-bubble-ai"}`}
+                        style={{ width: "fit-content", whiteSpace: "pre-line" }}
+                      >
+                        {renderFormattedText(cleanText)}
+                      </div>
+
+                      {/* Interactive Recommended Food Cards (Order directly from chat bubble) */}
+                      {!isUser && ids.length > 0 && (
+                        <div style={{ display: "flex", gap: "8px", overflowX: "auto", width: "100%", maxWidth: "100%", paddingBottom: "6px", scrollbarWidth: "none", marginTop: "4px" }}>
+                          {ids.map((id) => {
+                            const item = menuItems.find((it) => it.id === id);
+                            if (!item || item.status === "OUT_OF_STOCK") return null;
+                            return (
+                              <ChatRecommendCard
+                                key={item.id}
+                                item={item}
+                                onAdd={() => handleDirectOrder(item.id, item.name, item.price)}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Interactive Recommended Food Cards (Order directly from chat bubble) */}
-                    {msg.role !== "user" && ids.length > 0 && (
-                      <div style={{ display: "flex", gap: "8px", overflowX: "auto", width: "100%", paddingBottom: "6px", scrollbarWidth: "none", marginTop: "4px" }}>
-                        {ids.map((id) => {
-                          const item = menuItems.find((it) => it.id === id);
-                          if (!item || item.status === "OUT_OF_STOCK") return null;
-                          return (
-                            <ChatRecommendCard
-                              key={item.id}
-                              item={item}
-                              onAdd={() => handleDirectOrder(item.id, item.name, item.price)}
-                            />
-                          );
-                        })}
-                      </div>
+                    {isUser && (
+                      <div className="chat-avatar chat-avatar-user" title="You">🎓</div>
                     )}
                   </div>
                 );
               })}
               {chatLoading && (
-                <div className="chat-bubble chat-bubble-ai" style={{ display: "flex", alignItems: "center", gap: "6px", alignSelf: "flex-start" }}>
-                  <Loader2 size={12} className="animate-spin" /> Finding food details...
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", width: "100%", alignSelf: "flex-start", marginBottom: "4px" }}>
+                  <div className="chat-avatar chat-avatar-ai">👨‍🍳</div>
+                  <div className="chat-bubble chat-bubble-ai" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Loader2 size={12} className="animate-spin" /> Thinking...
+                  </div>
                 </div>
               )}
               <div ref={chatBottomRef}></div>

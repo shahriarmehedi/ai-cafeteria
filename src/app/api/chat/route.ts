@@ -9,9 +9,57 @@ function generateLocalAIResponse(
   menuItems: any[],
   activeOrder: any | null,
   tableNumber: number
-): { text: string; recommendIds: string[]; shouldPlaceOrder?: boolean } {
+): { 
+  text: string; 
+  recommendIds: string[]; 
+  shouldPlaceOrder?: boolean;
+  shouldRefundOrder?: boolean;
+  shouldEscalateOrder?: boolean;
+  refundAmount?: number;
+  refundReason?: string;
+} {
   const lowerMsg = message.toLowerCase();
   const inStock = menuItems.filter((item) => item.status === "IN_STOCK");
+
+  // 0.0 Refund or Escalation request check (fallback mode)
+  const isRefundRequest = lowerMsg.includes("refund") || lowerMsg.includes("money back") || lowerMsg.includes("pay me back") || lowerMsg.includes("reimburse");
+  const isEscalationRequest = lowerMsg.includes("escalate") || lowerMsg.includes("human") || lowerMsg.includes("manager") || lowerMsg.includes("support") || lowerMsg.includes("person") || lowerMsg.includes("complaint");
+
+  if (isRefundRequest || isEscalationRequest) {
+    if (activeOrder) {
+      if (isRefundRequest) {
+        const refundAmount = activeOrder.total;
+        if (refundAmount > 500) {
+          return {
+            text: `🤖 [AI Chef] Your refund request for Order **${activeOrder.orderNumber}** (total ৳${refundAmount.toFixed(2)}) exceeds my direct authorization limit of ৳500. I have escalated this request to a human manager for manual review.`,
+            recommendIds: [],
+            shouldEscalateOrder: true,
+            refundReason: "Customer requested a refund in fallback mode (amount exceeds limit)"
+          };
+        } else {
+          return {
+            text: `🤖 [AI Chef] I have successfully processed a refund of **৳${refundAmount.toFixed(2)}** for Order **${activeOrder.orderNumber}** due to your request. The amount will be credited back to you.`,
+            recommendIds: [],
+            shouldRefundOrder: true,
+            refundAmount: refundAmount,
+            refundReason: "Customer requested a refund in fallback mode"
+          };
+        }
+      } else {
+        return {
+          text: `🤖 [AI Chef] Understood. I have escalated Order **${activeOrder.orderNumber}** to a human support manager for manual review.`,
+          recommendIds: [],
+          shouldEscalateOrder: true,
+          refundReason: "Customer requested escalation to a human"
+        };
+      }
+    } else {
+      return {
+        text: `🤖 [AI Chef] I see you want to request a refund or contact support, but I couldn't find any active orders for this table or session. Please verify your order or check in with counter staff.`,
+        recommendIds: []
+      };
+    }
+  }
 
   // 0. Direct Ordering intent check (e.g. "order tea", "I want to buy burger" in fallback mode)
   const isOrderRequest = lowerMsg.includes("order") || lowerMsg.includes("buy") || lowerMsg.includes("purchase") || lowerMsg.includes("want a") || lowerMsg.includes("want some") || lowerMsg.includes("get me");
@@ -410,7 +458,7 @@ Guidelines:
 
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // Tool Declaration for Direct Ordering via Chat
+    // Tool Declarations for Gemini
     const placeOrderDeclaration: FunctionDeclaration = {
       name: "placeOrder",
       description: "Place an order for menu items directly. Call this when the user explicitly requests to order, buy, or purchase one or more items (e.g. 'I want to order tea' or 'please order 1 biryani').",
@@ -432,6 +480,33 @@ Guidelines:
           specialInstructions: { type: SchemaType.STRING, description: "Any special cooking instructions or requests (e.g., no sugar, extra spicy)." }
         },
         required: ["items"]
+      }
+    };
+
+    const processRefundDeclaration: FunctionDeclaration = {
+      name: "processRefund",
+      description: "Process a refund for a specific order. Call this when the customer requests a refund for a valid reason (e.g. food arrived extremely late, wrong food, food didn't arrive, or quality issue). The AI can refund up to ৳500 directly.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          orderId: { type: SchemaType.STRING, description: "The database ID of the order or the Order Number (e.g. CB-1234)." },
+          amount: { type: SchemaType.NUMBER, description: "The amount to refund. Must not exceed the order total." },
+          reason: { type: SchemaType.STRING, description: "The detailed reason for the refund." }
+        },
+        required: ["orderId", "amount", "reason"]
+      }
+    };
+
+    const escalateToHumanDeclaration: FunctionDeclaration = {
+      name: "escalateToHuman",
+      description: "Escalate the order to a human support manager for manual review. Call this when a refund is requested but the amount exceeds ৳500, when the user explicitly asks to talk to a human/manager, or when the refund reason requires manager approval.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          orderId: { type: SchemaType.STRING, description: "The database ID of the order or the Order Number (e.g. CB-1234)." },
+          reason: { type: SchemaType.STRING, description: "The reason for escalating to human review." }
+        },
+        required: ["orderId", "reason"]
       }
     };
 
@@ -480,7 +555,7 @@ Guidelines:
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       systemInstruction: systemInstruction,
-      tools: [{ functionDeclarations: [placeOrderDeclaration] }],
+      tools: [{ functionDeclarations: [placeOrderDeclaration, processRefundDeclaration, escalateToHumanDeclaration] }],
     });
 
     // Retrieve full chat history
@@ -542,6 +617,76 @@ Guidelines:
           });
         }
       }
+      else if (call.name === "processRefund") {
+        const args: any = call.args;
+        const refundAmount = Number(args.amount);
+        const orderIdentifier = args.orderId;
+        const reason = args.reason;
+
+        const orders = await dbService.getOrders();
+        const targetOrder = orders.find(o => o.id === orderIdentifier || o.orderNumber === orderIdentifier || o.orderNumber.replace("-", "") === orderIdentifier.replace("-", ""));
+
+        if (!targetOrder) {
+          const failText = `🤖 [AI Chef] I'm sorry, I couldn't find order ${orderIdentifier} in the system. Please verify the order number.`;
+          await dbService.createChatMessage(sessionId, "model", failText);
+          return NextResponse.json({ text: failText });
+        }
+
+        if (refundAmount > 500) {
+          const escalatedOrder = await dbService.updateOrder(targetOrder.id, {
+            refundStatus: "ESCALATED",
+            refundReason: `${reason} (Auto-escalated: Refund of ৳${refundAmount} exceeds AI limit of ৳500)`
+          });
+          const escText = `🤖 [AI Chef] Your refund request for **৳${refundAmount}** exceeds my direct refund authorization limit of ৳500. I have automatically escalated Order **${targetOrder.orderNumber}** to a human manager for manual review.`;
+          await dbService.createChatMessage(sessionId, "model", escText);
+          return NextResponse.json({
+            text: escText,
+            orderUpdated: true,
+            order: escalatedOrder
+          });
+        }
+
+        const updatedOrder = await dbService.updateOrder(targetOrder.id, {
+          refundStatus: "REFUNDED",
+          refundAmount: refundAmount,
+          refundReason: reason
+        });
+
+        const confirmText = `🤖 [AI Chef] I have successfully processed a refund of **৳${refundAmount}** for Order **${targetOrder.orderNumber}**. Reason: ${reason}. The amount will be credited back to your account.`;
+        await dbService.createChatMessage(sessionId, "model", confirmText);
+        return NextResponse.json({
+          text: confirmText,
+          orderUpdated: true,
+          order: updatedOrder
+        });
+      }
+      else if (call.name === "escalateToHuman") {
+        const args: any = call.args;
+        const orderIdentifier = args.orderId;
+        const reason = args.reason;
+
+        const orders = await dbService.getOrders();
+        const targetOrder = orders.find(o => o.id === orderIdentifier || o.orderNumber === orderIdentifier || o.orderNumber.replace("-", "") === orderIdentifier.replace("-", ""));
+
+        if (!targetOrder) {
+          const failText = `🤖 [AI Chef] I'm sorry, I couldn't find order ${orderIdentifier} in the system.`;
+          await dbService.createChatMessage(sessionId, "model", failText);
+          return NextResponse.json({ text: failText });
+        }
+
+        const escalatedOrder = await dbService.updateOrder(targetOrder.id, {
+          refundStatus: "ESCALATED",
+          refundReason: reason
+        });
+
+        const confirmText = `🤖 [AI Chef] I have successfully escalated Order **${targetOrder.orderNumber}** to a human support manager. Reason: ${reason}. A manager will review your request shortly.`;
+        await dbService.createChatMessage(sessionId, "model", confirmText);
+        return NextResponse.json({
+          text: confirmText,
+          orderUpdated: true,
+          order: escalatedOrder
+        });
+      }
     }
 
     const responseText = result.response.text();
@@ -553,11 +698,37 @@ Guidelines:
   } catch (error: any) {
     console.error("Gemini API Error, falling back to local assistant:", error);
     
-    // Failsafe: Generate a local response instead of throwing a 500 error
     const localRes = generateLocalAIResponse(message, menuItems, activeOrder, tableNumber);
     let responseText = localRes.text;
-    if (localRes.recommendIds.length > 0 && !localRes.shouldPlaceOrder) {
+    if (localRes.recommendIds.length > 0 && !localRes.shouldPlaceOrder && !localRes.shouldRefundOrder && !localRes.shouldEscalateOrder) {
       responseText += ` [RECOMMEND: ${localRes.recommendIds.join(", ")}]`;
+    }
+
+    if (localRes.shouldRefundOrder && activeOrder) {
+      const updatedOrder = await dbService.updateOrder(activeOrder.id, {
+        refundStatus: "REFUNDED",
+        refundAmount: localRes.refundAmount || activeOrder.total,
+        refundReason: localRes.refundReason || "Customer requested refund"
+      });
+      try {
+        await dbService.createChatMessage(sessionId, "model", responseText);
+      } catch (dbErr) {
+        console.error("Failed to write fallback message to db", dbErr);
+      }
+      return NextResponse.json({ text: responseText, orderUpdated: true, order: updatedOrder, isMock: true });
+    }
+
+    if (localRes.shouldEscalateOrder && activeOrder) {
+      const updatedOrder = await dbService.updateOrder(activeOrder.id, {
+        refundStatus: "ESCALATED",
+        refundReason: localRes.refundReason || "Customer requested human review"
+      });
+      try {
+        await dbService.createChatMessage(sessionId, "model", responseText);
+      } catch (dbErr) {
+        console.error("Failed to write fallback message to db", dbErr);
+      }
+      return NextResponse.json({ text: responseText, orderUpdated: true, order: updatedOrder, isMock: true });
     }
     
     if (localRes.shouldPlaceOrder && localRes.recommendIds.length > 0) {

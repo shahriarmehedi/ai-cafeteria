@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Order } from "@/lib/mockDb";
 import { SessionUser } from "@/lib/session";
-import { updateOrderStatusAction } from "@/app/actions";
+import { updateOrderStatusAction, resolveEscalationAction } from "@/app/actions";
 import {
   Clock,
   RefreshCw,
@@ -114,6 +114,23 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
     }
   };
 
+  const handleResolveEscalation = async (orderId: string, resolution: "REFUNDED" | "REFUND_DENIED") => {
+    setActionLoading(orderId);
+    try {
+      const res = await resolveEscalationAction(orderId, resolution);
+      if (res.error) {
+        alert(res.error);
+      } else {
+        await fetchOrders(true);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to resolve escalation.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const activeOrders = orders.filter((o) => ["RECEIVED", "PREPARING", "READY"].includes(o.status));
   const archivedOrders = orders.filter((o) => ["COMPLETED", "CANCELLED"].includes(o.status));
   const displayOrders = activeTab === "ACTIVE" ? activeOrders : archivedOrders;
@@ -198,6 +215,39 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
                     </span>
                   </div>
 
+                  {order.refundStatus && (
+                    <div
+                      style={{
+                        background:
+                          order.refundStatus === "REFUNDED" ? "var(--success-light)" :
+                          order.refundStatus === "ESCALATED" ? "var(--warning-light)" : "var(--danger-light)",
+                        border: `1px solid ${
+                          order.refundStatus === "REFUNDED" ? "rgba(16, 185, 129, 0.2)" :
+                          order.refundStatus === "ESCALATED" ? "rgba(245, 158, 11, 0.2)" : "rgba(239, 68, 68, 0.2)"
+                        }`,
+                        color:
+                          order.refundStatus === "REFUNDED" ? "var(--success)" :
+                          order.refundStatus === "ESCALATED" ? "var(--warning)" : "var(--danger)",
+                        borderRadius: "8px",
+                        padding: "8px 10px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        marginBottom: "10px",
+                        textAlign: "center",
+                      }}
+                      className={order.refundStatus === "ESCALATED" ? "animate-pulse-light" : ""}
+                    >
+                      {order.refundStatus === "REFUNDED" && `💸 Refunded: ৳${order.refundAmount?.toFixed(2)}`}
+                      {order.refundStatus === "ESCALATED" && `⚠️ Escalated: Human Review`}
+                      {order.refundStatus === "REFUND_DENIED" && `❌ Refund Request Denied`}
+                      {order.refundReason && (
+                        <div style={{ fontSize: "10px", color: "var(--text-secondary)", fontWeight: "normal", marginTop: "2px", fontStyle: "italic" }}>
+                          "{order.refundReason}"
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Checklist of Items */}
                   <div style={{ borderTop: "1px dashed var(--border)", borderBottom: "1px dashed var(--border)", padding: "10px 0", margin: "10px 0" }}>
                     <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "6px" }}>
@@ -248,37 +298,58 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
                     </button>
                   ) : (
                     <>
-                      {order.status === "RECEIVED" && (
-                        <button
-                          onClick={() => handleUpdateStatus(order.id, "PREPARING")}
-                          className="btn btn-primary btn-sm"
-                          style={{ width: "100%", background: "var(--primary)" }}
-                        >
-                          <Play size={12} /> Start Cooking
-                        </button>
-                      )}
-                      {order.status === "PREPARING" && (
-                        <button
-                          onClick={() => handleUpdateStatus(order.id, "READY")}
-                          className="btn btn-primary btn-sm"
-                          style={{ width: "100%", background: "var(--warning)", color: "#000" }}
-                        >
-                          <Check size={12} /> Mark as Ready
-                        </button>
-                      )}
-                      {order.status === "READY" && (
-                        <button
-                          onClick={() => handleUpdateStatus(order.id, "COMPLETED")}
-                          className="btn btn-primary btn-sm"
-                          style={{ width: "100%", background: "var(--success)" }}
-                        >
-                          <CheckCircle2 size={12} /> Picked Up
-                        </button>
-                      )}
-                      {activeTab === "ARCHIVE" && (
-                        <div style={{ textAlign: "center", fontSize: "11px", color: order.status === "COMPLETED" ? "var(--success)" : "var(--danger)" }}>
-                          Order {order.status.toLowerCase()}
+                      {order.refundStatus === "ESCALATED" ? (
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            onClick={() => handleResolveEscalation(order.id, "REFUNDED")}
+                            className="btn btn-primary btn-sm"
+                            style={{ flex: 1, background: "var(--success)", fontSize: "11px", padding: "6px" }}
+                          >
+                            Approve Refund
+                          </button>
+                          <button
+                            onClick={() => handleResolveEscalation(order.id, "REFUND_DENIED")}
+                            className="btn btn-danger btn-sm"
+                            style={{ flex: 1, fontSize: "11px", padding: "6px" }}
+                          >
+                            Deny Refund
+                          </button>
                         </div>
+                      ) : (
+                        <>
+                          {order.status === "RECEIVED" && (
+                            <button
+                              onClick={() => handleUpdateStatus(order.id, "PREPARING")}
+                              className="btn btn-primary btn-sm"
+                              style={{ width: "100%", background: "var(--primary)" }}
+                            >
+                              <Play size={12} /> Start Cooking
+                            </button>
+                          )}
+                          {order.status === "PREPARING" && (
+                            <button
+                              onClick={() => handleUpdateStatus(order.id, "READY")}
+                              className="btn btn-primary btn-sm"
+                              style={{ width: "100%", background: "var(--warning)", color: "#000" }}
+                            >
+                              <Check size={12} /> Mark as Ready
+                            </button>
+                          )}
+                          {order.status === "READY" && (
+                            <button
+                              onClick={() => handleUpdateStatus(order.id, "COMPLETED")}
+                              className="btn btn-primary btn-sm"
+                              style={{ width: "100%", background: "var(--success)" }}
+                            >
+                              <CheckCircle2 size={12} /> Picked Up
+                            </button>
+                          )}
+                          {activeTab === "ARCHIVE" && (
+                            <div style={{ textAlign: "center", fontSize: "11px", color: order.status === "COMPLETED" ? "var(--success)" : "var(--danger)" }}>
+                              Order {order.status.toLowerCase()}
+                            </div>
+                          )}
+                        </>
                       )}
                     </>
                   )}

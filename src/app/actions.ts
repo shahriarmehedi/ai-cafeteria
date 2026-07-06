@@ -221,3 +221,29 @@ export async function manageTableAction(
 
   return { error: "Invalid operation arguments" };
 }
+
+// Kitchen / Admin: Resolve Escalated Refund Requests
+export async function resolveEscalationAction(orderId: string, resolution: "REFUNDED" | "REFUND_DENIED") {
+  const session = await getSession();
+  if (!session || (session.role !== "KITCHEN" && session.role !== "ADMIN")) {
+    return { error: "Unauthorized access" };
+  }
+
+  const order = await dbService.getOrder(orderId);
+  if (!order) {
+    return { error: "Order not found" };
+  }
+
+  const updates: any = { refundStatus: resolution };
+  if (resolution === "REFUNDED") {
+    updates.refundAmount = order.refundAmount || order.total;
+  }
+
+  const updatedOrder = await dbService.updateOrder(orderId, updates);
+
+  revalidatePath("/kitchen");
+  revalidatePath("/admin");
+  revalidatePath(`/table/${order.tableNumber}`);
+
+  return { success: true, order: updatedOrder };
+}

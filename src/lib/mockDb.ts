@@ -49,6 +49,9 @@ export interface Order {
   status: string; // RECEIVED, PREPARING, READY, COMPLETED, CANCELLED
   total: number;
   specialInstructions?: string | null;
+  refundStatus?: string | null;
+  refundAmount?: number | null;
+  refundReason?: string | null;
   items: OrderItem[];
   createdAt: Date;
   updatedAt: Date;
@@ -370,6 +373,9 @@ export const mockDb = {
       status: "RECEIVED",
       total,
       specialInstructions: orderData.specialInstructions || null,
+      refundStatus: null,
+      refundAmount: null,
+      refundReason: null,
       items,
       createdAt: new Date(),
       updatedAt: new Date(),

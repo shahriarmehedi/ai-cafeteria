@@ -634,5 +634,57 @@ body {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
   background: rgba(30, 41, 59, 0.35) !important;
 }
+/* Chat Avatar styling */
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.chat-avatar-ai {
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+.chat-avatar-user {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid var(--border);
+}
 
+/* Pulsing light for review notifications */
+@keyframes pulseLight {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+.animate-pulse-light {
+  animation: pulseLight 2.2s infinite ease-in-out;
+}
 
+/* Fullscreen chat sheet on mobile viewports */
+@media (max-width: 767px) {
+  .chat-drawer-overlay, .drawer-overlay {
+    background: rgba(0, 0, 0, 0.8) !important;
+  }
+  .chat-drawer-content, .drawer-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+    border: none !important;
+  }
+  .drawer-content {
+    /* For other modals like history */
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
