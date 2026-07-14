@@ -303,7 +303,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
       </div>
 
       {/* Tabs */}
-      <div className="tabs-header" style={{ maxWidth: "700px", marginBottom: "24px" }}>
+      <div className="tabs-header" style={{ width: "100%", maxWidth: "100%", marginBottom: "24px" }}>
         <button onClick={() => setActiveTab("STATS")} className={`tab-btn ${activeTab === "STATS" ? "active" : ""}`}>
           <TrendingUp size={13} style={{ marginRight: "3px", display: "inline" }} /> Stats
         </button>
@@ -417,9 +417,6 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                 <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>Order Cancellations</span>
                 <h3 style={{ fontSize: "18px", fontWeight: 800 }}>
                   {ordersList.filter(o => o.status === "CANCELLED").length} Cancelled
-                  <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--text-muted)", marginLeft: "6px" }}>
-                    (৳{ordersList.filter(o => o.status === "CANCELLED" && o.refundStatus === "REFUNDED").reduce((s, o) => s + (o.refundAmount || o.total), 0).toFixed(0)} refunded)
-                  </span>
                 </h3>
               </div>
             </div>
@@ -796,24 +793,24 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                   <>
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {pageItems.map((order) => (
-                        <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
+                        <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "13px" }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "14px" }}>
                               <strong>{order.orderNumber}</strong>
                               <span style={{ color: "var(--text-muted)" }}>•</span>
                               <span>Table {order.tableNumber}</span>
                               <span style={{ color: "var(--text-muted)" }}>•</span>
                               <span style={{ fontWeight: 700 }}>৳{order.total.toFixed(2)}</span>
                             </div>
-                            <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "3px" }}>
+                            <span style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
                               👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
                             </span>
-                            {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
-                            <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
+                            {order.refundReason && <span style={{ display: "block", fontSize: "12px", color: "var(--text-muted)", marginTop: "3px" }}>Reason: "{order.refundReason}"</span>}
+                            <span style={{ display: "block", fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
                               🕐 Resolved: {new Date(order.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
-                          <span className={`badge ${order.refundStatus === "REFUNDED" ? "badge-success" : "badge-danger"}`} style={{ borderStyle: "dashed", flexShrink: 0, marginLeft: "12px" }}>
+                          <span className={`badge ${order.refundStatus === "REFUNDED" ? "badge-success" : "badge-danger"}`} style={{ borderStyle: "dashed", flexShrink: 0, marginLeft: "12px", fontSize: "11px" }}>
                             {order.refundStatus}
                           </span>
                         </div>
@@ -892,34 +889,34 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                   <>
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                       {pageItems.map((order) => (
-                        <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
+                        <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "14px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "13px" }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "14px" }}>
                               <strong>{order.orderNumber}</strong>
                               <span style={{ color: "var(--text-muted)" }}>•</span>
                               <span>Table {order.tableNumber}</span>
                               <span style={{ color: "var(--text-muted)" }}>•</span>
                               <span style={{ fontWeight: 700 }}>৳{(order.refundAmount || order.total).toFixed(2)}</span>
                               {order.refundStatus === "REFUNDED" && (
-                                <span className="badge badge-success" style={{ borderStyle: "dashed", fontSize: "9px", padding: "1px 5px" }}>AUTO-REFUNDED</span>
+                                <span className="badge badge-success" style={{ borderStyle: "dashed", fontSize: "10px", padding: "1px 5px" }}>AUTO-REFUNDED</span>
                               )}
                             </div>
-                            <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "3px" }}>
+                            <span style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
                               👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
                             </span>
                             {order.items && (
-                              <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
+                              <span style={{ display: "block", fontSize: "11px", color: "var(--text-muted)", marginTop: "3px" }}>
                                 {order.items.map(it => `${it.menuItemName} ×${it.quantity}`).join(", ")}
                               </span>
                             )}
                             {order.refundReason && (
-                              <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>
+                              <span style={{ display: "block", fontSize: "12px", color: "var(--text-muted)", marginTop: "3px" }}>Reason: "{order.refundReason}"</span>
                             )}
-                            <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
+                            <span style={{ display: "block", fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
                               🕐 Cancelled: {new Date(order.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
-                          <span className="badge badge-danger" style={{ fontSize: "10px", flexShrink: 0, marginLeft: "12px" }}>CANCELLED</span>
+                          <span className="badge badge-danger" style={{ fontSize: "11px", flexShrink: 0, marginLeft: "12px" }}>CANCELLED</span>
                         </div>
                       ))}
                     </div>
