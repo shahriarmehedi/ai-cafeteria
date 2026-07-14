@@ -40,6 +40,11 @@ export async function POST(req: Request) {
 
     // 3. Retrieve session for authentication mapping
     const session = await getSession();
+    let walletBalance = 0;
+    if (session) {
+      const liveUser = await dbService.getUserByIdentifier(session.email || session.phone || "");
+      walletBalance = liveUser?.balance !== undefined ? liveUser.balance : (session.role === "CUSTOMER" ? 1000.00 : 0);
+    }
 
     // 4. Delegate to AI service for intent classification
     const history = await dbService.getChatMessages(sessionId);
@@ -50,7 +55,8 @@ export async function POST(req: Request) {
       recentHistory,
       menuItems,
       activeOrder,
-      tableNumber
+      tableNumber,
+      walletBalance
     );
 
     let finalResponse = classification.replyDraft;

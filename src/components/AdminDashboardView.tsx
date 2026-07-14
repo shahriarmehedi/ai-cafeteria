@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { MenuItem, Order, Table } from "@/lib/mockDb";
 import { useToast } from "@/components/Toast";
@@ -33,6 +34,7 @@ interface Props {
 
 export default function AdminDashboardView({ menuItems, orders, tables, session }: Props) {
   const { toast } = useToast();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"STATS" | "MENU" | "TABLES" | "REFUNDS">("STATS");
   
   // Data State
@@ -62,6 +64,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
           resolution === "REFUNDED" ? "Refund approved successfully!" : "Refund request denied.",
           resolution === "REFUNDED" ? "success" : "warning"
         );
+        router.refresh();
       }
     } catch (err) {
       console.error("Refund resolution error:", err);

@@ -94,11 +94,13 @@ To ensure the application runs in any environment (with or without internet/live
     *   The "Ask AI" button and "View Basket" buttons are rendered side-by-side inside this bar. This avoids blocking food cards or interfering with user interactions.
 
 ### 3.4 Virtual Wallet & Payment Simulation
-*   **Requirement**: Simulate payments and ensure refund resolutions reflect on user accounts.
+*   **Requirement**: Simulate checkout payments, insufficient balance rejections, credit card top-ups, and live UI balance updates.
 *   **Implementation**:
-    *   **Deduction**: In [actions.ts: createOrderAction](file:///C:/Users/Shahriar/Desktop/ai-cafeteria-v2/src/app/actions.ts), the user's balance is queried from the database. If their balance is greater than or equal to the order total, the order cost is deducted (`dbService.updateUserBalance(userId, balance - total)`) and checkout proceeds. If the balance is insufficient, it aborts and returns an error toast.
-    *   **Credit**: In `actions.ts: resolveEscalationAction`, when an administrator approves a refund, the order's total is fetched, and the customer's balance is credited (`balance + refundAmount`).
-    *   **Sync**: `Header.tsx` queries the live user balance from the database on every page revalidation and passes it to the client `<UserMenu>` component, ensuring the header dropdown wallet indicator is always accurate.
+    *   **Balance Deduction**: In [actions.ts: createOrderAction](file:///C:/Users/Shahriar/Desktop/ai-cafeteria-v2/src/app/actions.ts), the customer's wallet balance is checked. If their balance is lower than the order total, the order is blocked, and an error is returned. If they have sufficient funds, the order total is deducted (`dbService.updateUserBalance(userId, balance - total)`).
+    *   **Refund Credit**: In `actions.ts: resolveEscalationAction`, when an administrator approves a refund request, the resolved order total is credited back to the customer's balance (`balance + refundAmount`).
+    *   **Top-up Simulation**: Inside [UserMenu.tsx](file:///C:/Users/Shahriar/Desktop/ai-cafeteria-v2/src/components/UserMenu.tsx), clicking the "Recharge Wallet" button opens a credit card form modal (supporting Card Number spacing, Expiry MM/YY, and CVC). Submitting this form calls `topUpWalletAction(amount)` to credit the database balance.
+    *   **Visual Synchronization**: Next.js Server Components cache page layouts by default. To force the Header and dropdown balance indicators to refresh instantly after checkouts or top-ups, the client triggers `router.refresh()`. This clears Next.js's client-side cache and re-fetches the latest database user balance to render in the Header layout.
+    *   **AI Balance Awareness**: The user's live balance is forwarded to `ai.service.ts` and injected into the prompt. The AI Chef is instructed to refuse orders that exceed this balance, state the total order cost, and suggest the customer use the profile menu recharge button to top up.
 
 ### 3.5 Kitchen KDS Queue & Cancellations Guardrail
 *   **Requirement**: Play alerts on new orders, allow checklist status tracking, restrict cancellations to un-prepared/un-escalated tickets, and use a dedicated cancel modal.

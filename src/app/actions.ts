@@ -268,3 +268,30 @@ export async function resolveEscalationAction(orderId: string, resolution: "REFU
 
   return { success: true, order: updatedOrder };
 }
+
+// Customer: Simulated Wallet Top-up Action
+export async function topUpWalletAction(amount: number) {
+  const session = await getSession();
+  if (!session) {
+    return { success: false, error: "Authentication required" };
+  }
+
+  if (amount <= 0 || isNaN(amount)) {
+    return { success: false, error: "Invalid top-up amount" };
+  }
+
+  const user = await dbService.getUserByIdentifier(session.email || session.phone || "");
+  if (!user) {
+    return { success: false, error: "User profile not found" };
+  }
+
+  const currentBalance = user.balance !== undefined ? user.balance : 1000.0;
+  const newBalance = currentBalance + amount;
+  await dbService.updateUserBalance(user.id, newBalance);
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/kitchen");
+
+  return { success: true, newBalance };
+}

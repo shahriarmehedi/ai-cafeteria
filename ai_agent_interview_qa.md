@@ -252,3 +252,13 @@ This guide provides **35 deep-dive technical questions and answers** focusing on
 ### Q35: How does the application notify the kitchen in real-time when a user places an order via the AI Chef?
 > **Answer**: 
 > The KDS dashboard polls the `/api/orders` endpoint every 7 seconds. When an order is placed via chat, it is written to the database. On the next poll, the KDS detects the new active order and plays an audio alert beep, alerting kitchen staff immediately.
+
+### Q36: How does the AI Assistant enforce customer wallet balance limits before checkout transactions?
+> **Answer**: 
+> 1. The customer's live wallet balance is queried from the database and passed to `AIService` as context.
+> 2. The prompt includes guidelines telling the model to verify if the total cost of requested dishes exceeds the balance.
+> 3. If funds are insufficient, the LLM refuses ordering, classifies the intent as `GENERAL_INQUIRY` (preventing order creation), states the balance details, and directs them to the top-up simulation button inside their profile menu.
+
+### Q37: Why is it necessary to invoke `router.refresh()` on the client side after checkouts or top-ups?
+> **Answer**: 
+> Next.js App Router caches page layouts on the client. If the wallet balance changes in the database, the Header balance indicator remains stale until a refresh is triggered. Calling `router.refresh()` instructs Next.js to purge the client-side router cache, re-fetch the latest balance server-side, and re-render the Header components seamlessly.

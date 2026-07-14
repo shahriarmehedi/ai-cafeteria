@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { MenuItem, OrderItem } from "@/lib/mockDb";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { SessionUser } from "@/lib/session";
 import { createOrderAction, getCustomerOrdersAction } from "@/app/actions";
@@ -101,6 +102,7 @@ function ChatRecommendCard({ item, onAdd }: { item: MenuItem; onAdd: () => void 
 
 export default function TableOrderingView({ tableNumber, menuItems, session }: Props) {
   const { toast } = useToast();
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -261,6 +263,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
         setIsCartOpen(false);
         await loadPastOrders();
         toast(`Order ${res.order.orderNumber} sent to kitchen successfully!`, "success");
+        router.refresh();
       } else {
         toast(res.error || "Failed to place order. Please try again.", "error");
       }
@@ -331,6 +334,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
         setIsCartOpen(false); // Close cart drawer
         await loadPastOrders();
         toast(`Direct order placed for ${itemName}!`, "success");
+        router.refresh();
       } else {
         toast(res.error || "Failed to place order. Please try again.", "error");
       }
@@ -367,6 +371,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
           setIsChatOpen(false); // Automatically close chat side-drawer
           setIsCartOpen(false); // Automatically close cart drawer
           await loadPastOrders();
+          router.refresh();
         }
 
         // Direct refund or escalation updates

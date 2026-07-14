@@ -53,7 +53,8 @@ export class AIService {
     history: Array<{ role: string; content: string }>,
     menuItems: MenuItem[],
     activeOrder: Order | null,
-    tableNumber: number
+    tableNumber: number,
+    walletBalance?: number
   ): Promise<IntentResponse> {
     const menuContext = menuItems
       .map(
@@ -93,6 +94,8 @@ For other intents, the backend will execute actions, but you should still provid
 
 Guidelines:
 - Do NOT prefix your responses with '🤖 [AI Chef]' or any similar tag. Speak naturally and directly to the customer.
+- You are aware of the customer's wallet balance context. If the user asks "what is my balance?" or similar, state their exact wallet balance clearly.
+- If they want to place an order, but the order's total price exceeds their current wallet balance, you MUST refuse to place the order. Politely warn them of their insufficient balance, state the total order cost, and suggest they recharge their wallet via the "Recharge Wallet" simulation button inside their profile initials dropdown menu at the top-right corner. In this case, classify the intent as GENERAL_INQUIRY (since we will block order execution) and output the draft explanation in replyDraft.
 - Categorize user's input with a confidence score between 0.0 and 1.0.
 - Extract any mentioned order ID (e.g. CB-1002), table number, refund amount, or reasons.
 - For PLACE_ORDER, map the requested item names to the exact database item IDs in 'items' array. If they use a generic word like 'tea' or 'coffee', map it to the closest matching in-stock item ID from the menu.
@@ -102,6 +105,9 @@ ${menuContext}
 
 Current Order Context:
 ${orderContext}
+
+Customer Wallet Balance Context:
+${walletBalance !== undefined ? `৳${walletBalance.toFixed(2)}` : "Not available / Guest User"}
 `;
 
       const model = this.genAI.getGenerativeModel({
