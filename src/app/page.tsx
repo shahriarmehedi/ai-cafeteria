@@ -29,6 +29,29 @@ export default async function Home() {
   }
 
   const tables = await dbService.getTables();
+  const allOrders = await dbService.getOrders();
+
+  // Identify tables with active orders (RECEIVED, PREPARING, READY)
+  const runningTableNumbers = new Set(
+    allOrders
+      .filter((o) => ["RECEIVED", "PREPARING", "READY"].includes(o.status))
+      .map((o) => o.tableNumber)
+  );
+
+  // Identify logged-in customer's last used table
+  let lastUsedTableNumber: number | null = null;
+  if (session) {
+    const customerOrders = allOrders.filter((o) => {
+      return !!(
+        (session.email && o.customerEmail === session.email) ||
+        (session.phone && o.customerPhone === session.phone)
+      );
+    });
+    if (customerOrders.length > 0) {
+      customerOrders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      lastUsedTableNumber = customerOrders[0].tableNumber;
+    }
+  }
 
   return (
     <div className="app-container animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "24px", minHeight: "80vh", justifyContent: "center" }}>
@@ -70,26 +93,52 @@ export default async function Home() {
 
         {/* Visual Table Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-          {tables.map((table) => (
-            <Link
-              key={table.id}
-              href={`/table/${table.number}`}
-              className="quick-login-card"
-              style={{
-                textDecoration: "none",
-                padding: "16px 12px",
-                borderColor: table.status === "INACTIVE" ? "transparent" : "var(--border)",
-                opacity: table.status === "INACTIVE" ? 0.4 : 1,
-                pointerEvents: table.status === "INACTIVE" ? "none" : "auto",
-                background: "rgba(255,255,255,0.01)",
-              }}
-            >
-              <span style={{ fontSize: "18px", fontWeight: 800 }}>T-{table.number}</span>
-              <span style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
-                {table.status === "ACTIVE" ? "Open" : "Closed"}
-              </span>
-            </Link>
-          ))}
+          {tables.map((table) => {
+            const hasRunningOrder = runningTableNumbers.has(table.number);
+            const isLastUsed = table.number === lastUsedTableNumber;
+
+            let cardBorder = table.status === "INACTIVE" ? "transparent" : "var(--border)";
+            let cardBg = "rgba(255,255,255,0.01)";
+            let badgeText = "";
+            let badgeColor = "var(--text-muted)";
+
+            if (hasRunningOrder) {
+              cardBorder = "1.5px solid var(--warning)";
+              cardBg = "rgba(245, 158, 11, 0.05)";
+              badgeText = "Running Order";
+              badgeColor = "var(--warning)";
+            } else if (isLastUsed) {
+              cardBorder = "1.5px solid var(--info)";
+              cardBg = "rgba(14, 165, 233, 0.05)";
+              badgeText = "Last Used";
+              badgeColor = "var(--info)";
+            }
+
+            return (
+              <Link
+                key={table.id}
+                href={`/table/${table.number}`}
+                className="quick-login-card"
+                style={{
+                  textDecoration: "none",
+                  padding: "16px 12px",
+                  border: cardBorder,
+                  opacity: table.status === "INACTIVE" ? 0.4 : 1,
+                  pointerEvents: table.status === "INACTIVE" ? "none" : "auto",
+                  background: cardBg,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <span style={{ fontSize: "18px", fontWeight: 800 }}>T-{table.number}</span>
+                <span style={{ fontSize: "10px", color: badgeColor, marginTop: "2px", fontWeight: badgeText ? 600 : 400 }}>
+                  {badgeText || (table.status === "ACTIVE" ? "Open" : "Closed")}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </div>
 

@@ -1,17 +1,18 @@
 /* CampusBite Minimal Modern UI/UX Design System */
+@import url('https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0b0f17;
-  --bg-secondary: #121824;
-  --surface: #1e293b;
-  --surface-hover: #293548;
-  --surface-active: #334155;
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --surface: #27272a;
+  --surface-hover: #3f3f46;
+  --surface-active: #52525b;
   
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --primary-light: rgba(79, 70, 229, 0.1);
-  --primary-glow: rgba(79, 70, 229, 0.3);
+  --primary: #f4f4f5;
+  --primary-hover: #ffffff;
+  --primary-light: rgba(244, 244, 245, 0.08);
+  --primary-glow: rgba(244, 244, 245, 0.2);
   
   --success: #10b981;
   --success-light: rgba(16, 185, 129, 0.08);
@@ -23,18 +24,18 @@
   --info-light: rgba(14, 165, 233, 0.08);
 
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
   
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.15);
   
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --radius-full: 9999px;
   
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'Onest', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --transition: all 0.2s ease;
 }
 
@@ -177,7 +178,7 @@ body {
 
 .btn-primary {
   background: var(--primary);
-  color: #ffffff;
+  color: #09090b;
 }
 
 .btn-primary:hover {

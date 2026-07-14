@@ -572,7 +572,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                   display: "flex",
                   flexDirection: "column",
                   gap: "10px",
-                  borderColor: table.status === "ACTIVE" ? "rgba(79,70,229,0.15)" : "var(--border)",
+                  borderColor: table.status === "ACTIVE" ? "var(--primary-glow)" : "var(--border)",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -626,6 +626,18 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
 
                     <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
                       <strong>Items: </strong> {order.items.map(it => `${it.menuItemName} (x${it.quantity})`).join(", ")}
+                    </div>
+
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                      <strong>Kitchen Status: </strong>
+                      <span className={`badge ${
+                        order.status === "RECEIVED" ? "badge-info" :
+                        order.status === "PREPARING" ? "badge-warning" :
+                        order.status === "READY" ? "badge-success" :
+                        order.status === "COMPLETED" ? "badge-success" : "badge-danger"
+                      }`} style={{ display: "inline-block", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>
+                        {order.status}
+                      </span>
                     </div>
 
                     <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
