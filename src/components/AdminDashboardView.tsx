@@ -651,8 +651,10 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                       </span>
                     </div>
 
-                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                      <strong>Customer: </strong> {order.customerName || "Walk-in"} ({order.customerEmail || order.customerPhone || "No contact info"})
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center", fontSize: "12px", color: "var(--text-primary)", background: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border)", margin: "4px 0" }}>
+                      <span>👤 <strong>{order.customerName || "Customer"}</strong></span>
+                      <span style={{ color: "var(--text-muted)" }}>•</span>
+                      <span style={{ color: "var(--text-secondary)" }}>{order.customerEmail || order.customerPhone || "No contact info"}</span>
                     </div>
 
                     <div style={{ padding: "8px 10px", background: "rgba(245, 158, 11, 0.05)", borderLeft: "3px solid var(--warning)", borderRadius: "4px", fontSize: "12px" }}>

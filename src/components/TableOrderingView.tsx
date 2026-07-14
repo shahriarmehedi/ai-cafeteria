@@ -707,7 +707,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                             order.refundStatus === "REFUNDED" ? "badge-success" :
                             order.refundStatus === "ESCALATED" ? "badge-warning" : "badge-danger"
                           }`} style={{ borderStyle: "dashed" }}>
-                            {order.refundStatus}
+                            {order.refundStatus === "REFUNDED" ? `REFUNDED (৳${(order.refundAmount || order.total).toFixed(0)})` : order.refundStatus}
                           </span>
                         )}
                       </div>

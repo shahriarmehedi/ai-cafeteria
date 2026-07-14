@@ -9,6 +9,7 @@ export interface User {
   phone?: string | null;
   name?: string | null;
   role: string;
+  balance?: number;
   createdAt: Date;
 }
 
@@ -80,6 +81,7 @@ const initialUsers: User[] = [
     phone: "1234567890",
     name: "Admin User",
     role: "ADMIN",
+    balance: 0,
     createdAt: new Date(),
   },
   {
@@ -88,6 +90,7 @@ const initialUsers: User[] = [
     phone: "0987654321",
     name: "Kitchen Staff",
     role: "KITCHEN",
+    balance: 0,
     createdAt: new Date(),
   },
   {
@@ -96,6 +99,7 @@ const initialUsers: User[] = [
     phone: "5555555555",
     name: "Alex Smith",
     role: "CUSTOMER",
+    balance: 1000.00,
     createdAt: new Date(),
   },
 ];
@@ -208,7 +212,11 @@ function initDb(): MockData {
       const data = JSON.parse(dataStr);
       // Map ISO strings back to Dates
       return {
-        users: (data.users || []).map((u: any) => ({ ...u, createdAt: new Date(u.createdAt) })),
+        users: (data.users || []).map((u: any) => ({
+          ...u,
+          balance: u.balance !== undefined ? u.balance : (u.role === "CUSTOMER" ? 1000.0 : 0.0),
+          createdAt: new Date(u.createdAt)
+        })),
         tables: (data.tables || []).map((t: any) => ({ ...t, createdAt: new Date(t.createdAt) })),
         menuItems: (data.menuItems || []).map((m: any) => ({ ...m, createdAt: new Date(m.createdAt) })),
         orders: (data.orders || []).map((o: any) => ({
@@ -254,10 +262,11 @@ export const mockDb = {
   getUserByPhone: (phone: string): User | undefined => {
     return initDb().users.find((u) => u.phone === phone);
   },
-  createUser: (user: Omit<User, "id" | "createdAt">): User => {
+  createUser: (user: Omit<User, "id" | "createdAt" | "balance"> & { balance?: number }): User => {
     const db = initDb();
     const newUser: User = {
       ...user,
+      balance: user.balance !== undefined ? user.balance : (user.role === "CUSTOMER" ? 1000.0 : 0.0),
       id: "user-" + Math.random().toString(36).substring(2, 9),
       createdAt: new Date(),
     };
@@ -417,5 +426,20 @@ export const mockDb = {
     const db = initDb();
     db.chatMessages = db.chatMessages.filter((m) => m.sessionId !== sessionId);
     saveDb(db);
+  },
+  updateUserBalance: (id: string, newBalance: number): User | null => {
+    const db = initDb();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx === -1) return null;
+    db.users[idx].balance = newBalance;
+    saveDb(db);
+    return db.users[idx];
+  },
+  getUserByIdentifier: (identifier: string): User | undefined => {
+    const db = initDb();
+    const lower = identifier.toLowerCase();
+    return db.users.find(
+      (u) => u.email?.toLowerCase() === lower || u.phone === identifier
+    );
   },
 };

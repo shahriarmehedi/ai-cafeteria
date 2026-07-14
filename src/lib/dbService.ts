@@ -30,7 +30,33 @@ export const dbService = {
     return mockDb.getUserByPhone(phone);
   },
 
-  createUser: async (user: { email?: string | null; phone?: string | null; name?: string | null; role: string }): Promise<User> => {
+  getUserByIdentifier: async (identifier: string): Promise<User | undefined> => {
+    if (isPrismaActive && prisma) {
+      const emailUser = await prisma.user.findFirst({ where: { email: { equals: identifier, mode: "insensitive" } } });
+      if (emailUser) return { ...emailUser, createdAt: new Date(emailUser.createdAt) } as any;
+      const phoneUser = await prisma.user.findFirst({ where: { phone: identifier } });
+      if (phoneUser) return { ...phoneUser, createdAt: new Date(phoneUser.createdAt) } as any;
+      return undefined;
+    }
+    return mockDb.getUserByIdentifier(identifier);
+  },
+
+  updateUserBalance: async (id: string, newBalance: number): Promise<User | null> => {
+    if (isPrismaActive && prisma) {
+      try {
+        const u = await prisma.user.update({
+          where: { id },
+          data: { balance: newBalance } as any,
+        });
+        return { ...u, createdAt: new Date(u.createdAt) } as any;
+      } catch {
+        return null;
+      }
+    }
+    return mockDb.updateUserBalance(id, newBalance);
+  },
+
+  createUser: async (user: { email?: string | null; phone?: string | null; name?: string | null; role: string; balance?: number }): Promise<User> => {
     if (isPrismaActive && prisma) {
       const u = await prisma.user.create({
         data: {
@@ -40,7 +66,7 @@ export const dbService = {
           role: user.role,
         },
       });
-      return { ...u, createdAt: new Date(u.createdAt) };
+      return { ...u, createdAt: new Date(u.createdAt) } as any;
     }
     return mockDb.createUser(user);
   },

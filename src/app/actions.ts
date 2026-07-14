@@ -89,6 +89,18 @@ export async function createOrderAction(orderData: {
     return { success: false, error: "Authentication required. Please log in first to place your order." };
   }
 
+  // Payment simulation deduction check
+  const total = orderData.items.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
+  const user = await dbService.getUserByIdentifier(session.email || session.phone || "");
+  if (user && user.role === "CUSTOMER") {
+    const currentBalance = user.balance !== undefined ? user.balance : 1000.0;
+    if (currentBalance < total) {
+      return { success: false, error: `Insufficient wallet balance. Total is ৳${total.toFixed(2)} but your wallet has only ৳${currentBalance.toFixed(2)}.` };
+    }
+    const newBalance = currentBalance - total;
+    await dbService.updateUserBalance(user.id, newBalance);
+  }
+
   const order = await dbService.createOrder({
     tableNumber: orderData.tableNumber,
     customerEmail: session.email || null,
@@ -236,7 +248,16 @@ export async function resolveEscalationAction(orderId: string, resolution: "REFU
 
   const updates: any = { refundStatus: resolution };
   if (resolution === "REFUNDED") {
-    updates.refundAmount = order.refundAmount || order.total;
+    const refundAmt = order.refundAmount || order.total;
+    updates.refundAmount = refundAmt;
+
+    // Refund simulation credit back to customer wallet
+    const customer = await dbService.getUserByIdentifier(order.customerEmail || order.customerPhone || "");
+    if (customer) {
+      const currentBalance = customer.balance !== undefined ? customer.balance : 1000.0;
+      const newBalance = currentBalance + refundAmt;
+      await dbService.updateUserBalance(customer.id, newBalance);
+    }
   }
 
   const updatedOrder = await dbService.updateOrder(orderId, updates);

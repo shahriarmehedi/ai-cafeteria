@@ -7,14 +7,28 @@ import UserMenu from "@/components/UserMenu";
 
 export default async function Header() {
   const session = await getSession();
+  let latestSession: any = null;
+  
+  if (session) {
+    const liveUser = await dbService.getUserByIdentifier(session.email || session.phone || "");
+    latestSession = {
+      id: session.id,
+      email: session.email,
+      phone: session.phone,
+      name: session.name,
+      role: session.role,
+      balance: liveUser?.balance !== undefined ? liveUser.balance : (session.role === "CUSTOMER" ? 1000.00 : 0)
+    };
+  }
+
   const isMock = dbService.isMockMode();
 
   return (
-    <header style={{ position: "sticky", top: 0, zIndex: 100, width: "100%" }}>
-      {/* Mock Mode Alert Banner */}
+    <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(9, 9, 11, 0.8)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 200 }}>
+      {/* Simulation Banner */}
       {isMock && (
-        <div className="warning-banner">
-          <span>⚠️ Running in Demo Mode (Local File DB). Add DATABASE_URL to `.env.local` for MongoDB.</span>
+        <div style={{ background: "rgba(245, 158, 11, 0.15)", borderBottom: "1px solid rgba(245, 158, 11, 0.25)", color: "var(--warning)", padding: "6px 12px", textAlign: "center", fontSize: "11px", fontWeight: 600 }}>
+          ⚡ CampusBite Simulator Mode (Prisma database offline)
         </div>
       )}
 
@@ -41,29 +55,29 @@ export default async function Header() {
           </Link>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {session ? (
+            {latestSession ? (
               <>
                 {/* Role Badges */}
-                {session.role === "ADMIN" && (
+                {latestSession.role === "ADMIN" && (
                   <Link href="/admin" className="badge badge-danger" style={{ textDecoration: "none" }}>
                     <Shield size={12} />
                     Admin
                   </Link>
                 )}
-                {session.role === "KITCHEN" && (
+                {latestSession.role === "KITCHEN" && (
                   <Link href="/kitchen" className="badge badge-warning" style={{ textDecoration: "none" }}>
                     <ChefHat size={12} />
                     Kitchen
                   </Link>
                 )}
-                {session.role === "CUSTOMER" && (
+                {latestSession.role === "CUSTOMER" && (
                   <span className="badge badge-info hide-mobile">
                     <ClipboardList size={12} />
                     Customer
                   </span>
                 )}
 
-                <UserMenu session={session} />
+                <UserMenu session={latestSession} />
               </>
             ) : (
               <Link href="/login" className="btn btn-primary btn-sm">

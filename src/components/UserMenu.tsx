@@ -10,6 +10,7 @@ interface Props {
     role: string;
     email?: string | null;
     phone?: string | null;
+    balance?: number;
   };
 }
 
@@ -88,6 +89,12 @@ export default function UserMenu({ session }: Props) {
               {session.email ? <Mail size={12} /> : <Phone size={12} />}
               {contactInfo}
             </span>
+            {session.role === "CUSTOMER" && (
+              <div style={{ marginTop: "8px", padding: "8px 10px", background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.15)", borderRadius: "6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>Wallet Balance</span>
+                <span style={{ fontSize: "13px", color: "var(--success)", fontWeight: 800 }}>৳{(session.balance !== undefined ? session.balance : 1000.00).toFixed(2)}</span>
+              </div>
+            )}
           </div>
 
           <div style={{ height: "1px", background: "var(--border)" }}></div>
