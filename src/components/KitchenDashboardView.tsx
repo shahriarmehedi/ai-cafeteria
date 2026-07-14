@@ -26,6 +26,7 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "ARCHIVE">("ACTIVE");
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [cancelOrderConfirm, setCancelOrderConfirm] = useState<Order | null>(null);
   
   // Interactive checklist state for chefs to check off items as they prepare them
   const [completedItemIds, setCompletedItemIds] = useState<Record<string, boolean>>({});
@@ -205,11 +206,9 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
                   {/* Top line with cancel */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                     <span style={{ fontSize: "18px", fontWeight: 800 }}>Table {order.tableNumber}</span>
-                    {["RECEIVED", "PREPARING"].includes(order.status) && (
+                    {order.status === "RECEIVED" && order.refundStatus !== "ESCALATED" && (
                       <button
-                        onClick={() => {
-                          if (confirm(`Cancel order ${order.orderNumber}?`)) handleUpdateStatus(order.id, "CANCELLED");
-                        }}
+                        onClick={() => setCancelOrderConfirm(order)}
                         style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
                         title="Cancel Order"
                       >
@@ -363,6 +362,37 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
           </div>
         )}
       </div>
+
+      {/* Dedicated Custom Cancel Confirmation Modal */}
+      {cancelOrderConfirm && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }}>
+          <div className="glass-panel animate-fade-in" style={{ width: "90%", maxWidth: "340px", padding: "24px", textAlign: "center", background: "var(--bg-secondary)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "12px" }}>Cancel Order</h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>
+              Are you sure you want to cancel order <strong>{cancelOrderConfirm.orderNumber}</strong>? This action cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setCancelOrderConfirm(null)}
+                className="btn btn-secondary btn-sm"
+                style={{ flex: 1 }}
+              >
+                Back
+              </button>
+              <button
+                onClick={() => {
+                  handleUpdateStatus(cancelOrderConfirm.id, "CANCELLED");
+                  setCancelOrderConfirm(null);
+                }}
+                className="btn btn-danger btn-sm"
+                style={{ flex: 1, background: "var(--danger)", border: "none", color: "#fff" }}
+              >
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

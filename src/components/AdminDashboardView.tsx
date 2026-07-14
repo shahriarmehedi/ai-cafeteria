@@ -71,6 +71,11 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
     }
   };
 
+  const getElapsedTime = (createdAt: Date) => {
+    const mins = Math.floor((new Date().getTime() - new Date(createdAt).getTime()) / 60000);
+    return mins < 1 ? "Just now" : `${mins}m ago`;
+  };
+
   // QR Modal State
   const [qrModalTable, setQrModalTable] = useState<Table | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
@@ -625,7 +630,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
                       <div>
                         <strong style={{ fontSize: "14px" }}>Order: {order.orderNumber}</strong>
-                        <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "10px" }}>Table {order.tableNumber}</span>
+                        <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "10px" }}>Table {order.tableNumber} • {getElapsedTime(order.createdAt)}</span>
                       </div>
                       <span className="badge badge-warning" style={{ alignSelf: "flex-start" }}>Requires Review</span>
                     </div>

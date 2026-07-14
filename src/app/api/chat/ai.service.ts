@@ -26,6 +26,25 @@ export class AIService {
   }
 
   /**
+   * Helper queue / retry mechanism for Gemini API calls to handle rate limits or transient errors.
+   */
+  private async callWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1500): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (retries <= 0) throw error;
+      console.warn({
+        event: "GEMINI_API_RATE_LIMIT_RETRY",
+        retriesRemaining: retries,
+        delayMs: delay,
+        error: error instanceof Error ? error.message : error
+      });
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return this.callWithRetry(fn, retries - 1, delay * 2);
+    }
+  }
+
+  /**
    * Parse user intent using Gemini Structured JSON schema.
    * If Gemini API key is missing or calls fail, it gracefully falls back to the offline classifier.
    */
@@ -140,7 +159,7 @@ ${orderContext}
         parts: [{ text: message }]
       });
 
-      const response = await model.generateContent({ contents });
+      const response = await this.callWithRetry(() => model.generateContent({ contents }));
       const text = response.response.text();
       
       const parsed: IntentResponse = JSON.parse(text);

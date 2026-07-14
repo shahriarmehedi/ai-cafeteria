@@ -10,6 +10,11 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // OTP Simulation States
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -82,42 +87,75 @@ function LoginForm() {
         )}
 
         {/* Regular passwordless login */}
-        <form onSubmit={handleLogin}>
-          <div className="form-group">
-            <label className="form-label">Email or Phone Number</label>
-            <div style={{ position: "relative" }}>
+        {!otpSent ? (
+          <form onSubmit={(e) => { e.preventDefault(); if (identifier.trim()) setOtpSent(true); else setError("Please enter your email or phone number."); }}>
+            <div className="form-group">
+              <label className="form-label">Email or Phone Number</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g., student@campus.edu or +12345678"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  disabled={loading || !!demoLoading}
+                  style={{ paddingLeft: "42px" }}
+                />
+                <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}>
+                  {identifier.includes("@") ? <Mail size={18} /> : <Phone size={18} />}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || !!demoLoading}
+              style={{ width: "100%", marginTop: "8px" }}
+            >
+              Continue Passwordless <ArrowRight size={16} />
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleLogin}>
+            <div style={{ background: "rgba(14,165,233,0.05)", border: "1px solid rgba(14,165,233,0.15)", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "12px", color: "var(--info)" }}>
+              🔑 Simulated OTP code sent to <strong>{identifier}</strong>. You can enter any 4-digit code (e.g., 1234) to sign in.
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Enter 4-Digit OTP Code</label>
               <input
                 type="text"
+                maxLength={4}
                 className="input-field"
-                placeholder="e.g., student@campus.edu or +12345678"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                disabled={loading || !!demoLoading}
-                style={{ paddingLeft: "42px" }}
+                placeholder="0000"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                disabled={loading}
+                style={{ textAlign: "center", fontSize: "20px", letterSpacing: "8px", fontWeight: 700 }}
               />
-              <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}>
-                {identifier.includes("@") ? <Mail size={18} /> : <Phone size={18} />}
-              </span>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading || !!demoLoading}
-            style={{ width: "100%", marginTop: "8px" }}
-          >
-            {loading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" /> Logging in...
-              </>
-            ) : (
-              <>
-                Continue Passwordless <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
+            <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => { setOtpSent(false); setOtp(""); }}
+                style={{ flex: 1 }}
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading || otp.length < 4}
+                style={{ flex: 1 }}
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : "Verify & Login"}
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Divider */}
         <div style={{ display: "flex", alignItems: "center", margin: "32px 0", gap: "12px" }}>
