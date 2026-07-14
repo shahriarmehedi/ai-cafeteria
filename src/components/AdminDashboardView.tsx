@@ -38,7 +38,7 @@ interface Props {
 export default function AdminDashboardView({ menuItems, orders, tables, session }: Props) {
   const { toast } = useToast();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"STATS" | "MENU" | "TABLES" | "REFUNDS">("STATS");
+  const [activeTab, setActiveTab] = useState<"STATS" | "MENU" | "TABLES" | "REFUNDS" | "CANCELLATIONS">("STATS");
   
   // Data State
   const [itemsList, setItemsList] = useState<MenuItem[]>(menuItems);
@@ -47,6 +47,11 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
 
   // Refund Action State
   const [refundLoading, setRefundLoading] = useState<string | null>(null);
+
+  // Pagination state
+  const ITEMS_PER_PAGE = 8;
+  const [refundLogPage, setRefundLogPage] = useState(1);
+  const [cancelLogPage, setCancelLogPage] = useState(1);
 
   const handleResolveRefund = async (orderId: string, resolution: "REFUNDED" | "REFUND_DENIED") => {
     setRefundLoading(orderId);
@@ -298,7 +303,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
       </div>
 
       {/* Tabs */}
-      <div className="tabs-header" style={{ maxWidth: "560px", marginBottom: "24px" }}>
+      <div className="tabs-header" style={{ maxWidth: "700px", marginBottom: "24px" }}>
         <button onClick={() => setActiveTab("STATS")} className={`tab-btn ${activeTab === "STATS" ? "active" : ""}`}>
           <TrendingUp size={13} style={{ marginRight: "3px", display: "inline" }} /> Stats
         </button>
@@ -308,8 +313,21 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
         <button onClick={() => setActiveTab("TABLES")} className={`tab-btn ${activeTab === "TABLES" ? "active" : ""}`}>
           <TableIcon size={13} style={{ marginRight: "3px", display: "inline" }} /> Seating & QRs
         </button>
-        <button onClick={() => setActiveTab("REFUNDS")} className={`tab-btn ${activeTab === "REFUNDS" ? "active" : ""}`}>
+        <button onClick={() => { setActiveTab("REFUNDS"); setRefundLogPage(1); }} className={`tab-btn ${activeTab === "REFUNDS" ? "active" : ""}`}>
           <DollarSign size={13} style={{ marginRight: "3px", display: "inline" }} /> Refunds
+          {ordersList.filter(o => o.refundStatus === "ESCALATED").length > 0 && (
+            <span style={{ marginLeft: "5px", background: "var(--warning)", color: "#000", borderRadius: "9999px", fontSize: "9px", fontWeight: 800, padding: "1px 5px" }}>
+              {ordersList.filter(o => o.refundStatus === "ESCALATED").length}
+            </span>
+          )}
+        </button>
+        <button onClick={() => { setActiveTab("CANCELLATIONS"); setCancelLogPage(1); }} className={`tab-btn ${activeTab === "CANCELLATIONS" ? "active" : ""}`}>
+          <XCircle size={13} style={{ marginRight: "3px", display: "inline" }} /> Cancellations
+          {ordersList.filter(o => o.status === "CANCELLED").length > 0 && (
+            <span style={{ marginLeft: "5px", background: "rgba(239,68,68,0.15)", color: "#f87171", borderRadius: "9999px", fontSize: "9px", fontWeight: 800, padding: "1px 5px" }}>
+              {ordersList.filter(o => o.status === "CANCELLED").length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -696,10 +714,9 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
       {/* TAB CONTENT: REFUNDS & ESCALATIONS */}
       {activeTab === "REFUNDS" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* ── PENDING APPROVALS ── */}
           <div className="glass-panel">
             <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px" }}>Pending Refund Approvals</h3>
-            
-            {/* Escalated list */}
             {ordersList.filter(o => o.refundStatus === "ESCALATED").length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {ordersList.filter(o => o.refundStatus === "ESCALATED").map((order) => (
@@ -740,25 +757,13 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "10px", marginTop: "4px" }}>
                       <span style={{ fontSize: "13px", fontWeight: 700 }}>Total: ৳{order.total.toFixed(2)}</span>
-                      
                       <div style={{ display: "flex", gap: "8px" }}>
                         {refundLoading === order.id ? (
                           <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Processing...</span>
                         ) : (
                           <>
-                            <button
-                              onClick={() => handleResolveRefund(order.id, "REFUNDED")}
-                              className="btn btn-primary btn-sm"
-                              style={{ background: "var(--success)", border: "none" }}
-                            >
-                              Approve Refund
-                            </button>
-                            <button
-                              onClick={() => handleResolveRefund(order.id, "REFUND_DENIED")}
-                              className="btn btn-danger btn-sm"
-                            >
-                              Deny Refund
-                            </button>
+                            <button onClick={() => handleResolveRefund(order.id, "REFUNDED")} className="btn btn-primary btn-sm" style={{ background: "var(--success)", border: "none" }}>Approve Refund</button>
+                            <button onClick={() => handleResolveRefund(order.id, "REFUND_DENIED")} className="btn btn-danger btn-sm">Deny Refund</button>
                           </>
                         )}
                       </div>
@@ -771,99 +776,177 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
             )}
           </div>
 
-          {/* ── ADMIN-RESOLVED REFUND REQUESTS LOG ── */}
-          <div className="glass-panel">
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-              <RotateCcw size={16} style={{ color: "var(--primary)" }} />
-              <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Refund Requests Log</h3>
-              <span style={{ fontSize: "11px", color: "var(--text-muted)", marginLeft: "auto" }}>Admin-reviewed escalations</span>
-            </div>
-            {(() => {
-              const adminRefunds = ordersList.filter(o =>
-                ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "") &&
-                o.status !== "CANCELLED"
-              );
-              return adminRefunds.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {adminRefunds.map((order) => (
-                    <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <strong>{order.orderNumber}</strong>
-                          <span style={{ color: "var(--text-muted)" }}>•</span>
-                          <span>Table {order.tableNumber}</span>
-                          <span style={{ color: "var(--text-muted)" }}>•</span>
-                          <span style={{ fontWeight: 700 }}>৳{order.total.toFixed(2)}</span>
-                        </div>
-                        <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "3px" }}>
-                          👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
-                        </span>
-                        {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
-                        <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
-                          🕐 Resolved: {new Date(order.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      <span className={`badge ${order.refundStatus === "REFUNDED" ? "badge-success" : "badge-danger"}`} style={{ borderStyle: "dashed", flexShrink: 0, marginLeft: "12px" }}>
-                        {order.refundStatus}
-                      </span>
-                    </div>
-                  ))}
+          {/* ── ADMIN-RESOLVED REFUND REQUESTS LOG (paginated) ── */}
+          {(() => {
+            const adminRefunds = ordersList
+              .filter(o => ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "") && o.status !== "CANCELLED")
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            const totalPages = Math.ceil(adminRefunds.length / ITEMS_PER_PAGE);
+            const pageItems = adminRefunds.slice((refundLogPage - 1) * ITEMS_PER_PAGE, refundLogPage * ITEMS_PER_PAGE);
+            return (
+              <div className="glass-panel">
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                  <RotateCcw size={16} style={{ color: "var(--primary)" }} />
+                  <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Refund Requests Log</h3>
+                  <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--text-muted)" }}>
+                    {adminRefunds.length} record{adminRefunds.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
-              ) : (
-                <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>No admin-resolved refund requests found.</p>
-              );
-            })()}
-          </div>
-
-          {/* ── CUSTOMER ORDER CANCELLATIONS LOG ── */}
-          <div className="glass-panel">
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-              <XCircle size={16} style={{ color: "#f87171" }} />
-              <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Order Cancellations Log</h3>
-              <span style={{ fontSize: "11px", color: "var(--text-muted)", marginLeft: "auto" }}>Customer self-cancelled with auto-refund</span>
-            </div>
-            {(() => {
-              const cancellations = ordersList.filter(o =>
-                o.status === "CANCELLED" &&
-                ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "")
-              );
-              return cancellations.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {cancellations.map((order) => (
-                    <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <strong>{order.orderNumber}</strong>
-                          <span style={{ color: "var(--text-muted)" }}>•</span>
-                          <span>Table {order.tableNumber}</span>
-                          <span style={{ color: "var(--text-muted)" }}>•</span>
-                          <span style={{ fontWeight: 700 }}>৳{(order.refundAmount || order.total).toFixed(2)}</span>
-                          <span className="badge badge-success" style={{ borderStyle: "dashed", fontSize: "9px", padding: "1px 5px" }}>AUTO-REFUNDED</span>
-                        </div>
-                        <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "3px" }}>
-                          👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
-                        </span>
-                        {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
-                        <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
-                          🕐 Cancelled: {new Date(order.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0, marginLeft: "12px" }}>
-                        <span className="badge badge-danger" style={{ fontSize: "10px" }}>CANCELLED</span>
-                        {order.items && (
-                          <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-                            {order.items.map(it => `${it.menuItemName} x${it.quantity}`).join(", ")}
+                {adminRefunds.length > 0 ? (
+                  <>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {pageItems.map((order) => (
+                        <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <strong>{order.orderNumber}</strong>
+                              <span style={{ color: "var(--text-muted)" }}>•</span>
+                              <span>Table {order.tableNumber}</span>
+                              <span style={{ color: "var(--text-muted)" }}>•</span>
+                              <span style={{ fontWeight: 700 }}>৳{order.total.toFixed(2)}</span>
+                            </div>
+                            <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "3px" }}>
+                              👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
+                            </span>
+                            {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
+                            <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
+                              🕐 Resolved: {new Date(order.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <span className={`badge ${order.refundStatus === "REFUNDED" ? "badge-success" : "badge-danger"}`} style={{ borderStyle: "dashed", flexShrink: 0, marginLeft: "12px" }}>
+                            {order.refundStatus}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    {totalPages > 1 && (
+                      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
+                        <button
+                          onClick={() => setRefundLogPage(p => Math.max(1, p - 1))}
+                          disabled={refundLogPage === 1}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: "4px 10px", opacity: refundLogPage === 1 ? 0.4 : 1 }}
+                        >← Prev</button>
+                        <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Page {refundLogPage} of {totalPages}</span>
+                        <button
+                          onClick={() => setRefundLogPage(p => Math.min(totalPages, p + 1))}
+                          disabled={refundLogPage === totalPages}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: "4px 10px", opacity: refundLogPage === totalPages ? 0.4 : 1 }}
+                        >Next →</button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>No admin-resolved refund requests found.</p>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* TAB CONTENT: ORDER CANCELLATIONS */}
+      {activeTab === "CANCELLATIONS" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* Summary stats strip */}
+          {(() => {
+            const allCancellations = ordersList.filter(o => o.status === "CANCELLED");
+            const autoRefunded    = allCancellations.filter(o => o.refundStatus === "REFUNDED");
+            const totalRefundedAmt = autoRefunded.reduce((s, o) => s + (o.refundAmount || o.total), 0);
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
+                <div className="glass-panel" style={{ padding: "14px 16px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Total Cancellations</span>
+                  <div style={{ fontSize: "22px", fontWeight: 800, marginTop: "2px" }}>{allCancellations.length}</div>
                 </div>
-              ) : (
-                <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>No order cancellations recorded.</p>
-              );
-            })()}
-          </div>
+                <div className="glass-panel" style={{ padding: "14px 16px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Auto-Refunded</span>
+                  <div style={{ fontSize: "22px", fontWeight: 800, marginTop: "2px", color: "var(--success)" }}>{autoRefunded.length}</div>
+                </div>
+                <div className="glass-panel" style={{ padding: "14px 16px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Total Refunded Amount</span>
+                  <div style={{ fontSize: "22px", fontWeight: 800, marginTop: "2px", color: "#f87171" }}>৳{totalRefundedAmt.toFixed(2)}</div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── CANCELLATIONS LOG (paginated) ── */}
+          {(() => {
+            const cancellations = ordersList
+              .filter(o => o.status === "CANCELLED")
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            const totalPages = Math.ceil(cancellations.length / ITEMS_PER_PAGE);
+            const pageItems  = cancellations.slice((cancelLogPage - 1) * ITEMS_PER_PAGE, cancelLogPage * ITEMS_PER_PAGE);
+            return (
+              <div className="glass-panel">
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                  <XCircle size={16} style={{ color: "#f87171" }} />
+                  <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Order Cancellations Log</h3>
+                  <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--text-muted)" }}>
+                    {cancellations.length} record{cancellations.length !== 1 ? "s" : ""} • newest first
+                  </span>
+                </div>
+                {cancellations.length > 0 ? (
+                  <>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {pageItems.map((order) => (
+                        <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <strong>{order.orderNumber}</strong>
+                              <span style={{ color: "var(--text-muted)" }}>•</span>
+                              <span>Table {order.tableNumber}</span>
+                              <span style={{ color: "var(--text-muted)" }}>•</span>
+                              <span style={{ fontWeight: 700 }}>৳{(order.refundAmount || order.total).toFixed(2)}</span>
+                              {order.refundStatus === "REFUNDED" && (
+                                <span className="badge badge-success" style={{ borderStyle: "dashed", fontSize: "9px", padding: "1px 5px" }}>AUTO-REFUNDED</span>
+                              )}
+                            </div>
+                            <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "3px" }}>
+                              👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
+                            </span>
+                            {order.items && (
+                              <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
+                                {order.items.map(it => `${it.menuItemName} ×${it.quantity}`).join(", ")}
+                              </span>
+                            )}
+                            {order.refundReason && (
+                              <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>
+                            )}
+                            <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
+                              🕐 Cancelled: {new Date(order.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <span className="badge badge-danger" style={{ fontSize: "10px", flexShrink: 0, marginLeft: "12px" }}>CANCELLED</span>
+                        </div>
+                      ))}
+                    </div>
+                    {totalPages > 1 && (
+                      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
+                        <button
+                          onClick={() => setCancelLogPage(p => Math.max(1, p - 1))}
+                          disabled={cancelLogPage === 1}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: "4px 10px", opacity: cancelLogPage === 1 ? 0.4 : 1 }}
+                        >← Prev</button>
+                        <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Page {cancelLogPage} of {totalPages}</span>
+                        <button
+                          onClick={() => setCancelLogPage(p => Math.min(totalPages, p + 1))}
+                          disabled={cancelLogPage === totalPages}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: "4px 10px", opacity: cancelLogPage === totalPages ? 0.4 : 1 }}
+                        >Next →</button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>No order cancellations recorded.</p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
