@@ -119,6 +119,12 @@ export async function POST(req: Request) {
 
         // AUTO-CANCEL GUARD: If the kitchen has not started cooking it (status is RECEIVED)
         if (targetOrder.status === "RECEIVED") {
+          // DOUBLE-REFUND GUARD: reject if any refund already exists (prevents prompt-injection abuse)
+          if (targetOrder.refundStatus) {
+            finalResponse = `Order **${targetOrder.orderNumber}** already has a refund status of **${targetOrder.refundStatus}**. No further refund action can be taken on this order.`;
+            break;
+          }
+
           const reasonText = classification.extractedData?.reason || "Cancelled via AI Chef Chatbot";
           const { cancelOrderCustomerAction } = await import("@/app/actions");
           const cancelRes = await cancelOrderCustomerAction(targetOrder.id, reasonText);
@@ -128,8 +134,14 @@ export async function POST(req: Request) {
             orderPlaced = true; 
             orderUpdated = true;
           } else {
-            finalResponse = `I tried to cancel your order, but ran into an error: ${cancelRes.error || "Please try cancelling via your Order History."}`;
+            finalResponse = `I tried to cancel your order, but the system rejected it: ${cancelRes.error || "Please try cancelling via your Order History."}`;
           }
+          break;
+        }
+
+        // TERMINAL STATUS GUARD: order is already CANCELLED or COMPLETED
+        if (["CANCELLED", "COMPLETED"].includes(targetOrder.status)) {
+          finalResponse = `Order **${targetOrder.orderNumber}** is already **${targetOrder.status}**. No further refund or cancellation action is possible.`;
           break;
         }
 

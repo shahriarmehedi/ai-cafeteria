@@ -783,7 +783,8 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                       <span>Table {order.tableNumber} • Total: <strong>৳{order.total.toFixed(2)}</strong></span>
                       
                       <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                        {order.status === "RECEIVED" && (
+                        {/* Only show Cancel when kitchen hasn't started AND no refund has been issued yet */}
+                        {order.status === "RECEIVED" && !order.refundStatus && (
                           <button
                             onClick={() => {
                               setCancellingOrderId(order.id);

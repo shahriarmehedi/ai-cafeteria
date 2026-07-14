@@ -319,58 +319,110 @@ export async function topUpWalletAction(amount: number) {
   return { success: true, newBalance };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// REFUND SAFETY RULESET
+// These are the canonical server-side rules. The UI may hide the cancel button,
+// but these rules are enforced here regardless — protecting against direct API
+// calls, prompt injection via the AI chatbot, or any other bypass attempt.
+// ─────────────────────────────────────────────────────────────────────────────
+const TERMINAL_ORDER_STATUSES   = ["CANCELLED", "COMPLETED"];
+const TERMINAL_REFUND_STATUSES  = ["REFUNDED", "REFUND_DENIED"];
+
 // Customer: Cancel Active Order (Before Kitchen Preparation starts)
 export async function cancelOrderCustomerAction(orderId: string, reason: string) {
+  // ── 1. Authentication ────────────────────────────────────────────────────
   const session = await getSession();
   if (!session) {
-    return { success: false, error: "Authentication required" };
+    return { success: false, error: "Authentication required." };
   }
 
+  // ── 2. Input sanitisation — strip potential prompt-injection payloads ─────
+  const safeReason = String(reason)
+    .replace(/<[^>]*>/g, "")      // strip HTML tags
+    .replace(/[{}\[\]]/g, "")     // strip JSON-like brackets that could confuse AI logging
+    .trim()
+    .slice(0, 300);               // hard cap at 300 chars
+
+  if (!safeReason) {
+    return { success: false, error: "A cancellation reason is required." };
+  }
+
+  // ── 3. Fetch the live order from the database (never trust client state) ──
   const order = await dbService.getOrder(orderId);
   if (!order) {
-    return { success: false, error: "Order not found" };
+    return { success: false, error: "Order not found." };
   }
 
-  // Check ownership
-  const isOwner = (session.email && order.customerEmail === session.email) ||
-                  (session.phone && order.customerPhone === session.phone);
+  // ── 4. Ownership check ───────────────────────────────────────────────────
+  const isOwner =
+    (session.email && order.customerEmail === session.email) ||
+    (session.phone && order.customerPhone === session.phone);
   if (!isOwner && session.role !== "ADMIN") {
+    console.warn({ event: "CANCEL_ACCESS_DENIED", orderId, sessionEmail: session.email });
     return { success: false, error: "Access Denied: You do not own this order." };
   }
 
-  // Check if cooking already started
-  if (order.status !== "RECEIVED") {
-    return { success: false, error: `Cannot cancel order. The kitchen has already set the status to ${order.status}.` };
+  // ── 5. Guard: order must not be in a terminal status ─────────────────────
+  if (TERMINAL_ORDER_STATUSES.includes(order.status)) {
+    return {
+      success: false,
+      error: `This order is already ${order.status} and cannot be cancelled again.`,
+    };
   }
 
-  // Update order status to CANCELLED and refund automatically
+  // ── 6. Guard: no double-refund — reject if any refund already exists ──────
+  if (order.refundStatus && TERMINAL_REFUND_STATUSES.includes(order.refundStatus)) {
+    console.warn({ event: "DOUBLE_REFUND_BLOCKED", orderId, existingRefundStatus: order.refundStatus });
+    return {
+      success: false,
+      error: `A refund has already been processed for this order (status: ${order.refundStatus}). No further refund is possible.`,
+    };
+  }
+
+  // ── 7. Guard: kitchen must not have started cooking ───────────────────────
+  if (order.status !== "RECEIVED") {
+    return {
+      success: false,
+      error: `Cannot cancel — the kitchen has already updated this order to "${order.status}".`,
+    };
+  }
+
+  // ── 8. Guard: refund amount must be a valid positive number ───────────────
+  if (!order.total || order.total <= 0 || !isFinite(order.total)) {
+    return { success: false, error: "Invalid order total. Refund aborted." };
+  }
+
+  // ── 9. All checks passed — perform the atomic cancellation ───────────────
   const updates = {
     status: "CANCELLED",
     refundStatus: "REFUNDED",
     refundAmount: order.total,
-    refundReason: `Customer Cancelled: ${reason}`,
+    refundReason: `Customer Cancelled: ${safeReason}`,
   };
 
-  // Re-credit customer balance
-  const customer = await dbService.getUserByIdentifier(order.customerEmail || order.customerPhone || "");
+  // Re-credit customer wallet
+  const customer = await dbService.getUserByIdentifier(
+    order.customerEmail || order.customerPhone || ""
+  );
   if (customer) {
     const currentBalance = customer.balance !== undefined ? customer.balance : 1000.0;
     await dbService.updateUserBalance(customer.id, currentBalance + order.total);
   }
 
-  // Restore Stock amounts!
+  // Restore item stock
   for (const oItem of order.items) {
     const dbItem = await dbService.getMenuItem(oItem.menuItemId);
     if (dbItem) {
-      const restoredStock = dbItem.stock + oItem.quantity;
       await dbService.updateMenuItem(dbItem.id, {
-        stock: restoredStock,
-        status: "IN_STOCK"
+        stock: dbItem.stock + oItem.quantity,
+        status: "IN_STOCK",
       });
     }
   }
 
   const updatedOrder = await dbService.updateOrder(orderId, updates);
+
+  console.info({ event: "ORDER_CANCELLED_REFUNDED", orderId, orderNumber: order.orderNumber, total: order.total, reason: safeReason });
 
   revalidatePath("/");
   revalidatePath("/admin");
