@@ -268,7 +268,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: rgba(11, 15, 23, 0.85);
+  background: rgba(9, 9, 11, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
@@ -308,7 +308,7 @@ body {
 
 .chat-bubble-user {
   background: var(--primary);
-  color: #ffffff;
+  color: #09090b;
   align-self: flex-end;
   border-bottom-right-radius: 4px;
 }

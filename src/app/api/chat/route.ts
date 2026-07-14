@@ -69,7 +69,7 @@ export async function POST(req: Request) {
 
       case "ACCOUNT_MODIFICATION": {
         // Secure Bypass: Instantly block account modifications and display direct portal redirect instructions
-        finalResponse = `🤖 [AI Chef] To modify your account details (such as address, phone number, or payment methods), please log in to our secure portal and go to Account Settings. For security reasons, I cannot perform account changes in this chat.`;
+        finalResponse = `To modify your account details (such as address, phone number, or payment methods), please log in to our secure portal and go to Account Settings. For security reasons, I cannot perform account changes in this chat.`;
         break;
       }
 
@@ -91,11 +91,11 @@ export async function POST(req: Request) {
             refundNote = " (Refund pending human manager review)";
           }
 
-          finalResponse = `🤖 [AI Chef] Order **${targetOrder.orderNumber}** containing [${itemsList}] is currently **${targetOrder.status}**${refundNote}. Total: ৳${targetOrder.total.toFixed(2)}.`;
+          finalResponse = `Order **${targetOrder.orderNumber}** containing [${itemsList}] is currently **${targetOrder.status}**${refundNote}. Total: ৳${targetOrder.total.toFixed(2)}.`;
           responsePayload = targetOrder;
           orderUpdated = true;
         } else {
-          finalResponse = `🤖 [AI Chef] I couldn't find any active orders for this table or account. If you just placed an order, please give the system a few seconds to process, or check your Order history.`;
+          finalResponse = `I couldn't find any active orders for this table or account. If you just placed an order, please give the system a few seconds to process, or check your Order history.`;
         }
         break;
       }
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
           : activeOrder;
 
         if (!targetOrder) {
-          finalResponse = `🤖 [AI Chef] I see you are requesting a refund, but I could not find that order. Please specify your order number (e.g. CB-1002) so I can help escalate it.`;
+          finalResponse = `I see you are requesting a refund, but I could not find that order. Please specify your order number (e.g. CB-1002) so I can help escalate it.`;
           break;
         }
 
@@ -117,13 +117,13 @@ export async function POST(req: Request) {
           const reasonText = classification.extractedData?.reason || "Refund requested via AI Chef assistant";
           const updatedOrder = await orderService.flagOrderForHumanReview(targetOrder.id, reasonText);
           
-          finalResponse = `🤖 [AI Chef] I have successfully registered a refund request for Order **${targetOrder.orderNumber}** due to: "${reasonText}". I have escalated it to our support team for manual review and human approval.`;
+          finalResponse = `I have successfully registered a refund request for Order **${targetOrder.orderNumber}** due to: "${reasonText}". I have escalated it to our support team for manual review and human approval.`;
           responsePayload = updatedOrder;
           orderUpdated = true;
           
           console.info({ event: "REFUND_ESCALATION_SUCCESS", orderNumber: targetOrder.orderNumber, reason: reasonText });
         } else {
-          finalResponse = `🤖 [AI Chef] I cannot request a refund for Order **${targetOrder.orderNumber}**. ${eligibility.reason}`;
+          finalResponse = `I cannot request a refund for Order **${targetOrder.orderNumber}**. ${eligibility.reason}`;
         }
         break;
       }
@@ -138,7 +138,7 @@ export async function POST(req: Request) {
           orderUpdated = true;
         }
 
-        finalResponse = `🤖 [AI Chef] I have escalated this conversation to a human support agent. A manager will check in on you at Table ${tableNumber || "your table"} shortly to assist you further.`;
+        finalResponse = `I have escalated this conversation to a human support agent. A manager will check in on you at Table ${tableNumber || "your table"} shortly to assist you further.`;
         console.warn({ event: "HUMAN_ESCALATION_TRIGGERED", tableNumber, reason: reasonText });
         break;
       }
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
         // Instant Ordering: LLM extracts items, but order is written strictly by the backend controller
         const items = classification.extractedData?.items;
         if (!items || items.length === 0) {
-          finalResponse = `🤖 [AI Chef] I wanted to help you place an order, but I couldn't identify the specific items from the menu. Can you please state exactly which food items you'd like?`;
+          finalResponse = `I wanted to help you place an order, but I couldn't identify the specific items from the menu. Can you please state exactly which food items you'd like?`;
           break;
         }
 
@@ -174,20 +174,20 @@ export async function POST(req: Request) {
             items: orderItems,
           });
 
-          finalResponse = `🤖 [AI Chef] I've placed your order directly! Your order number is **${newOrder.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
+          finalResponse = `I've placed your order directly! Your order number is **${newOrder.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
           responsePayload = newOrder;
           orderPlaced = true;
           
           console.info({ event: "ORDER_PLACED_VIA_CHAT", orderNumber: newOrder.orderNumber, tableNumber });
         } else {
-          finalResponse = `🤖 [AI Chef] I couldn't place that order because the items requested are currently out of stock. Please browse our menu for alternatives!`;
+          finalResponse = `I couldn't place that order because the items requested are currently out of stock. Please browse our menu for alternatives!`;
         }
         break;
       }
 
       default: {
         // Default Safety Net case
-        finalResponse = `🤖 [AI Chef] I'm sorry, I encountered an issue processing that request. I've alerted our team, and a support agent will assist you shortly.`;
+        finalResponse = `I'm sorry, I encountered an issue processing that request. I've alerted our team, and a support agent will assist you shortly.`;
         console.error({ event: "UNEXPECTED_INTENT_STATE", intent: classification.intent });
         break;
       }

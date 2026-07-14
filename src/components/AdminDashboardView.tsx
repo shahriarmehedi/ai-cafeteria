@@ -3,6 +3,7 @@
 import { useState } from "react";
 import QRCode from "qrcode";
 import { MenuItem, Order, Table } from "@/lib/mockDb";
+import { useToast } from "@/components/Toast";
 import { SessionUser } from "@/lib/session";
 import { manageMenuItemAction, manageTableAction, resolveEscalationAction } from "@/app/actions";
 import {
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export default function AdminDashboardView({ menuItems, orders, tables, session }: Props) {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"STATS" | "MENU" | "TABLES" | "REFUNDS">("STATS");
   
   // Data State
@@ -46,7 +48,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
     try {
       const res = await resolveEscalationAction(orderId, resolution);
       if (res.error) {
-        alert(res.error);
+        toast(res.error, "error");
       } else {
         // Update local state reactively
         setOrdersList((prev) =>
@@ -56,10 +58,14 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
               : o
           )
         );
+        toast(
+          resolution === "REFUNDED" ? "Refund approved successfully!" : "Refund request denied.",
+          resolution === "REFUNDED" ? "success" : "warning"
+        );
       }
     } catch (err) {
       console.error("Refund resolution error:", err);
-      alert("Failed resolving refund request.");
+      toast("Failed resolving refund request.", "error");
     } finally {
       setRefundLoading(null);
     }

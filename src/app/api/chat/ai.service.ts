@@ -73,6 +73,7 @@ For GENERAL_INQUIRY, formulate the complete, helpful draft response in 'replyDra
 For other intents, the backend will execute actions, but you should still provide a draft response or keep 'replyDraft' concise.
 
 Guidelines:
+- Do NOT prefix your responses with '🤖 [AI Chef]' or any similar tag. Speak naturally and directly to the customer.
 - Categorize user's input with a confidence score between 0.0 and 1.0.
 - Extract any mentioned order ID (e.g. CB-1002), table number, refund amount, or reasons.
 - For PLACE_ORDER, map the requested item names to the exact database item IDs in 'items' array. If they use a generic word like 'tea' or 'coffee', map it to the closest matching in-stock item ID from the menu.
@@ -290,7 +291,7 @@ ${orderContext}
         (item) => item.name.toLowerCase().includes("tea") || item.name.toLowerCase().includes("coffee")
       );
       if (breakfastItems.length > 0) {
-        replyText = `🤖 [AI Chef] For breakfast, I highly recommend our refreshing beverages: ${breakfastItems
+        replyText = `For breakfast, I highly recommend our refreshing beverages: ${breakfastItems
           .map((b) => `**${b.name}** (৳${b.price})`)
           .join(" and ")}.`;
         recommendIds.push(...breakfastItems.map((b) => b.id));
@@ -298,7 +299,7 @@ ${orderContext}
     } else if (lowerMsg.includes("recommend") || lowerMsg.includes("suggest") || lowerMsg.includes("hungry")) {
       const sample = inStock.slice(0, 2);
       if (sample.length > 0) {
-        replyText = `🤖 [AI Chef] Here is what I suggest: try our delicious **${sample[0].name}** (৳${sample[0].price}).`;
+        replyText = `Here is what I suggest: try our delicious **${sample[0].name}** (৳${sample[0].price}).`;
         recommendIds.push(...sample.map((s) => s.id));
       }
     } else {

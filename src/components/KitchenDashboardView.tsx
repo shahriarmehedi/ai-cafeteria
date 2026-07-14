@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Order } from "@/lib/mockDb";
+import { useToast } from "@/components/Toast";
 import { SessionUser } from "@/lib/session";
 import { updateOrderStatusAction, resolveEscalationAction } from "@/app/actions";
 import {
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function KitchenDashboardView({ initialOrders, session }: Props) {
+  const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "ARCHIVE">("ACTIVE");
   const [refreshing, setRefreshing] = useState(false);
@@ -78,6 +80,7 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
         
         if (newActiveOrders.length > 0 && orders.length > 0) {
           playNewOrderBeep();
+          toast(`Received ${newActiveOrders.length} new incoming orders!`, "info");
         }
 
         setOrders(data);
@@ -102,13 +105,20 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
     try {
       const res = await updateOrderStatusAction(orderId, newStatus);
       if (res.error) {
-        alert(res.error);
+        toast(res.error, "error");
       } else {
         await fetchOrders(true);
+        if (newStatus === "PREPARING") {
+          toast("Started cooking order!", "success");
+        } else if (newStatus === "READY") {
+          toast("Order marked as ready for pickup!", "success");
+        } else if (newStatus === "COMPLETED") {
+          toast("Order delivered & completed successfully!", "success");
+        }
       }
     } catch (err) {
       console.error(err);
-      alert("Failed updating order.");
+      toast("Failed updating order status.", "error");
     } finally {
       setActionLoading(null);
     }
@@ -119,13 +129,14 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
     try {
       const res = await resolveEscalationAction(orderId, resolution);
       if (res.error) {
-        alert(res.error);
+        toast(res.error, "error");
       } else {
         await fetchOrders(true);
+        toast(`Refund escalation resolved as: ${resolution}`, "success");
       }
     } catch (err) {
       console.error(err);
-      alert("Failed to resolve escalation.");
+      toast("Failed resolving escalation.", "error");
     } finally {
       setActionLoading(null);
     }

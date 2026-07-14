@@ -28,7 +28,7 @@ export default async function Header() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#fff",
+              color: "#09090b",
             }}
           >
             <Coffee size={18} />

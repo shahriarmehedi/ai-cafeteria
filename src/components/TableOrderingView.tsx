@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { MenuItem, OrderItem } from "@/lib/mockDb";
+import { useToast } from "@/components/Toast";
 import { SessionUser } from "@/lib/session";
 import { createOrderAction, getCustomerOrdersAction } from "@/app/actions";
 import {
@@ -99,6 +100,7 @@ function ChatRecommendCard({ item, onAdd }: { item: MenuItem; onAdd: () => void 
 }
 
 export default function TableOrderingView({ tableNumber, menuItems, session }: Props) {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -176,6 +178,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
             setPlacedOrder(updated);
             // Sync status inside history list
             setPastOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o)));
+            toast(`Order ${updated.orderNumber} is now: ${updated.status.toLowerCase()}`, "info");
           }
         }
       } catch (e) {
@@ -214,6 +217,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
       }
       return [...prev, { item, quantity: 1 }];
     });
+    toast(`Added ${item.name} to basket!`, "success");
   };
 
   const removeFromCart = (itemId: string) => {
@@ -224,6 +228,7 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
       }
       return prev.filter((i) => i.item.id !== itemId);
     });
+    toast("Removed item from basket", "info");
   };
 
   const cartTotal = cart.reduce((acc, curr) => acc + curr.item.price * curr.quantity, 0);
@@ -255,8 +260,9 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
         setSpecialInstructions("");
         setIsCartOpen(false);
         await loadPastOrders();
+        toast(`Order ${res.order.orderNumber} sent to kitchen successfully!`, "success");
       } else {
-        alert(res.error || "Failed to place order. Please try again.");
+        toast(res.error || "Failed to place order. Please try again.", "error");
       }
     } catch (err) {
       console.error(err);
@@ -324,8 +330,9 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
         setIsChatOpen(false); // Close chat drawer
         setIsCartOpen(false); // Close cart drawer
         await loadPastOrders();
+        toast(`Direct order placed for ${itemName}!`, "success");
       } else {
-        alert(res.error || "Failed to place order. Please try again.");
+        toast(res.error || "Failed to place order. Please try again.", "error");
       }
     } catch (err) {
       console.error("Direct order execution error:", err);
