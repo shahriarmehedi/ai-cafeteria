@@ -32,10 +32,14 @@ export const dbService = {
 
   getUserByIdentifier: async (identifier: string): Promise<User | undefined> => {
     if (isPrismaActive && prisma) {
-      const emailUser = await prisma.user.findFirst({ where: { email: { equals: identifier, mode: "insensitive" } } });
-      if (emailUser) return { ...emailUser, createdAt: new Date(emailUser.createdAt) } as any;
-      const phoneUser = await prisma.user.findFirst({ where: { phone: identifier } });
-      if (phoneUser) return { ...phoneUser, createdAt: new Date(phoneUser.createdAt) } as any;
+      const cleanId = identifier.trim();
+      if (cleanId.includes("@")) {
+        const emailUser = await prisma.user.findFirst({ where: { email: { equals: cleanId, mode: "insensitive" } } });
+        if (emailUser) return { ...emailUser, createdAt: new Date(emailUser.createdAt) } as any;
+      } else {
+        const phoneUser = await prisma.user.findFirst({ where: { phone: cleanId } });
+        if (phoneUser) return { ...phoneUser, createdAt: new Date(phoneUser.createdAt) } as any;
+      }
       return undefined;
     }
     return mockDb.getUserByIdentifier(identifier);
