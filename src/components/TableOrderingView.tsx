@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MenuItem } from "@/lib/mockDb";
+import { MenuItem, OrderItem } from "@/lib/mockDb";
 import { SessionUser } from "@/lib/session";
 import { createOrderAction, getCustomerOrdersAction } from "@/app/actions";
 import {
@@ -599,44 +599,14 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
         )}
       </div>
 
-      {/* Prominent Floating Action Button (FAB) for AI Assistant */}
-      {!isChatOpen && (
-        <button
-          onClick={() => setIsChatOpen(true)}
-          className="ai-chef-fab"
-          style={{
-            position: "fixed",
-            bottom: "82px",
-            right: "16px",
-            background: "var(--primary)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "24px",
-            padding: "10px 18px",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            boxShadow: "0 6px 20px rgba(79, 70, 229, 0.4)",
-            cursor: "pointer",
-            zIndex: 95,
-            fontWeight: 600,
-            fontSize: "13px",
-            animation: "pulse-glow 2s infinite",
-          }}
-        >
-          <Sparkles size={16} />
-          <span>Ask AI Chef</span>
-        </button>
-      )}
-
-      {/* Bottom Sticky Basket Bar */}
+      {/* Bottom Sticky Unified Control Bar */}
       <div
         style={{
           position: "fixed",
           bottom: "16px",
           left: "50%",
           transform: "translateX(-50%)",
-          width: "90%",
+          width: "95%",
           maxWidth: "480px",
           height: "54px",
           background: "var(--bg-secondary)",
@@ -644,26 +614,55 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
           borderRadius: "27px",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          padding: "0 10px",
+          justifyContent: "space-between",
+          padding: "0 8px",
+          gap: "8px",
           zIndex: 90,
           boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
         }}
       >
+        {/* Ask AI Chef Button */}
+        {!isChatOpen && (
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="btn btn-secondary"
+            style={{
+              flex: "1 1 35%",
+              borderRadius: "22px",
+              height: "38px",
+              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "4px",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Sparkles size={14} style={{ color: "var(--primary)" }} />
+            <span>Ask AI</span>
+          </button>
+        )}
+
+        {/* View Basket Button */}
         <button
           onClick={() => cartItemCount > 0 && setIsCartOpen(true)}
           disabled={cartItemCount === 0}
           className="btn btn-primary"
           style={{
-            width: "100%",
+            flex: isChatOpen ? "1 1 100%" : "1 1 65%",
             borderRadius: "22px",
             height: "38px",
-            fontSize: "13px",
+            fontSize: "12px",
             opacity: cartItemCount === 0 ? 0.4 : 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
           }}
         >
-          <ShoppingCart size={15} style={{ marginRight: "6px", display: "inline" }} />
-          View Basket ({cartItemCount} items) • ৳{cartTotal.toFixed(2)}
+          <ShoppingCart size={14} />
+          <span>Basket ({cartItemCount}) • ৳{cartTotal.toFixed(0)}</span>
         </button>
       </div>
 
@@ -704,6 +703,16 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                             {order.refundStatus}
                           </span>
                         )}
+                      </div>
+                    </div>
+                    <div style={{ margin: "6px 0", padding: "6px 8px", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                        {order.items && order.items.map((it: OrderItem) => (
+                          <div key={it.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "11px" }}>
+                            <span style={{ color: "var(--text-primary)" }}>{it.quantity}x {it.menuItemName}</span>
+                            <span style={{ color: "var(--text-secondary)" }}>৳{(it.price * it.quantity).toFixed(0)}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 

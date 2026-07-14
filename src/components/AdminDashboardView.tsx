@@ -4,7 +4,7 @@ import { useState } from "react";
 import QRCode from "qrcode";
 import { MenuItem, Order, Table } from "@/lib/mockDb";
 import { SessionUser } from "@/lib/session";
-import { manageMenuItemAction, manageTableAction } from "@/app/actions";
+import { manageMenuItemAction, manageTableAction, resolveEscalationAction } from "@/app/actions";
 import {
   TrendingUp,
   DollarSign,
@@ -31,11 +31,39 @@ interface Props {
 }
 
 export default function AdminDashboardView({ menuItems, orders, tables, session }: Props) {
-  const [activeTab, setActiveTab] = useState<"STATS" | "MENU" | "TABLES">("STATS");
+  const [activeTab, setActiveTab] = useState<"STATS" | "MENU" | "TABLES" | "REFUNDS">("STATS");
   
   // Data State
   const [itemsList, setItemsList] = useState<MenuItem[]>(menuItems);
   const [tablesList, setTablesList] = useState<Table[]>(tables);
+  const [ordersList, setOrdersList] = useState<Order[]>(orders);
+
+  // Refund Action State
+  const [refundLoading, setRefundLoading] = useState<string | null>(null);
+
+  const handleResolveRefund = async (orderId: string, resolution: "REFUNDED" | "REFUND_DENIED") => {
+    setRefundLoading(orderId);
+    try {
+      const res = await resolveEscalationAction(orderId, resolution);
+      if (res.error) {
+        alert(res.error);
+      } else {
+        // Update local state reactively
+        setOrdersList((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? { ...o, refundStatus: resolution, refundAmount: resolution === "REFUNDED" ? o.total : null }
+              : o
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Refund resolution error:", err);
+      alert("Failed resolving refund request.");
+    } finally {
+      setRefundLoading(null);
+    }
+  };
 
   // QR Modal State
   const [qrModalTable, setQrModalTable] = useState<Table | null>(null);
@@ -58,11 +86,11 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
   const [tableLoading, setTableLoading] = useState(false);
 
   // Tab 1: Stats Calculations
-  const completedOrders = orders.filter((o) => o.status === "COMPLETED");
+  const completedOrders = ordersList.filter((o) => o.status === "COMPLETED");
   const totalSales = completedOrders.reduce((acc, curr) => acc + curr.total, 0);
   const totalOrdersCount = completedOrders.length;
   const avgOrderValue = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
-  const activeOrdersCount = orders.filter((o) => ["RECEIVED", "PREPARING", "READY"].includes(o.status)).length;
+  const activeOrdersCount = ordersList.filter((o) => ["RECEIVED", "PREPARING", "READY"].includes(o.status)).length;
 
   // Item Popularity Calculations (Quantity sold per item)
   const itemSalesMap: { [key: string]: number } = {};
@@ -249,7 +277,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
       </div>
 
       {/* Tabs */}
-      <div className="tabs-header" style={{ maxWidth: "450px", marginBottom: "24px" }}>
+      <div className="tabs-header" style={{ maxWidth: "560px", marginBottom: "24px" }}>
         <button onClick={() => setActiveTab("STATS")} className={`tab-btn ${activeTab === "STATS" ? "active" : ""}`}>
           <TrendingUp size={13} style={{ marginRight: "3px", display: "inline" }} /> Stats
         </button>
@@ -258,6 +286,9 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
         </button>
         <button onClick={() => setActiveTab("TABLES")} className={`tab-btn ${activeTab === "TABLES" ? "active" : ""}`}>
           <TableIcon size={13} style={{ marginRight: "3px", display: "inline" }} /> Seating & QRs
+        </button>
+        <button onClick={() => setActiveTab("REFUNDS")} className={`tab-btn ${activeTab === "REFUNDS" ? "active" : ""}`}>
+          <DollarSign size={13} style={{ marginRight: "3px", display: "inline" }} /> Refunds
         </button>
       </div>
 
@@ -570,6 +601,93 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: REFUNDS & ESCALATIONS */}
+      {activeTab === "REFUNDS" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="glass-panel">
+            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px" }}>Pending Refund Approvals</h3>
+            
+            {/* Escalated list */}
+            {ordersList.filter(o => o.refundStatus === "ESCALATED").length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {ordersList.filter(o => o.refundStatus === "ESCALATED").map((order) => (
+                  <div key={order.id} className="glass-panel" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "10px", padding: "16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                      <div>
+                        <strong style={{ fontSize: "14px" }}>Order: {order.orderNumber}</strong>
+                        <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "10px" }}>Table {order.tableNumber}</span>
+                      </div>
+                      <span className="badge badge-warning" style={{ alignSelf: "flex-start" }}>Requires Review</span>
+                    </div>
+
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                      <strong>Items: </strong> {order.items.map(it => `${it.menuItemName} (x${it.quantity})`).join(", ")}
+                    </div>
+
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                      <strong>Customer: </strong> {order.customerName || "Walk-in"} ({order.customerEmail || order.customerPhone || "No contact info"})
+                    </div>
+
+                    <div style={{ padding: "8px 10px", background: "rgba(245, 158, 11, 0.05)", borderLeft: "3px solid var(--warning)", borderRadius: "4px", fontSize: "12px" }}>
+                      <strong>Reason: </strong> {order.refundReason || "No details provided"}
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "10px", marginTop: "4px" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 700 }}>Total: ৳{order.total.toFixed(2)}</span>
+                      
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        {refundLoading === order.id ? (
+                          <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Processing...</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleResolveRefund(order.id, "REFUNDED")}
+                              className="btn btn-primary btn-sm"
+                              style={{ background: "var(--success)", border: "none" }}
+                            >
+                              Approve Refund
+                            </button>
+                            <button
+                              onClick={() => handleResolveRefund(order.id, "REFUND_DENIED")}
+                              className="btn btn-danger btn-sm"
+                            >
+                              Deny Refund
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>No refund requests require review currently.</p>
+            )}
+          </div>
+
+          <div className="glass-panel">
+            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "16px" }}>Resolved Refund Log</h3>
+            {ordersList.filter(o => ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "")).length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {ordersList.filter(o => ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "")).map((order) => (
+                  <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
+                    <div>
+                      <strong>{order.orderNumber}</strong> • Table {order.tableNumber} • ৳{order.total.toFixed(2)}
+                      {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
+                    </div>
+                    <span className={`badge ${order.refundStatus === "REFUNDED" ? "badge-success" : "badge-danger"}`} style={{ borderStyle: "dashed" }}>
+                      {order.refundStatus}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>No resolved refund history found.</p>
+            )}
           </div>
         </div>
       )}

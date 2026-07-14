@@ -299,21 +299,8 @@ export default function KitchenDashboardView({ initialOrders, session }: Props) 
                   ) : (
                     <>
                       {order.refundStatus === "ESCALATED" ? (
-                        <div style={{ display: "flex", gap: "8px" }}>
-                          <button
-                            onClick={() => handleResolveEscalation(order.id, "REFUNDED")}
-                            className="btn btn-primary btn-sm"
-                            style={{ flex: 1, background: "var(--success)", fontSize: "11px", padding: "6px" }}
-                          >
-                            Approve Refund
-                          </button>
-                          <button
-                            onClick={() => handleResolveEscalation(order.id, "REFUND_DENIED")}
-                            className="btn btn-danger btn-sm"
-                            style={{ flex: 1, fontSize: "11px", padding: "6px" }}
-                          >
-                            Deny Refund
-                          </button>
+                        <div style={{ textAlign: "center", fontSize: "11px", color: "var(--warning)", fontWeight: 600, padding: "6px" }}>
+                          ⚠️ Refund Escalation (Manage in Admin)
                         </div>
                       ) : (
                         <>
