@@ -13,6 +13,7 @@ model User {
   phone     String?
   name      String?
   role      String   @default("CUSTOMER") // CUSTOMER, KITCHEN, ADMIN
+  balance   Float    @default(1000.0)
   createdAt DateTime @default(now())
 }
 
