@@ -89,6 +89,17 @@ export async function createOrderAction(orderData: {
     return { success: false, error: "Authentication required. Please log in first to place your order." };
   }
 
+  // Menu Item Stock Check
+  for (const oItem of orderData.items) {
+    const dbItem = await dbService.getMenuItem(oItem.menuItemId);
+    if (!dbItem) {
+      return { success: false, error: `Item ${oItem.menuItemName} not found in cafeteria menu.` };
+    }
+    if (dbItem.stock < oItem.quantity) {
+      return { success: false, error: `Sorry, ${oItem.menuItemName} is out of stock. Only ${dbItem.stock} left.` };
+    }
+  }
+
   // Payment simulation deduction check
   const total = orderData.items.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
   const user = await dbService.getUserByIdentifier(session.email || session.phone || "");
@@ -99,6 +110,18 @@ export async function createOrderAction(orderData: {
     }
     const newBalance = currentBalance - total;
     await dbService.updateUserBalance(user.id, newBalance);
+  }
+
+  // Decrement Stock
+  for (const oItem of orderData.items) {
+    const dbItem = await dbService.getMenuItem(oItem.menuItemId);
+    if (dbItem) {
+      const newStock = dbItem.stock - oItem.quantity;
+      await dbService.updateMenuItem(dbItem.id, { 
+        stock: newStock,
+        status: newStock <= 0 ? "OUT_OF_STOCK" : dbItem.status 
+      });
+    }
   }
 
   const order = await dbService.createOrder({
@@ -294,4 +317,65 @@ export async function topUpWalletAction(amount: number) {
   revalidatePath("/kitchen");
 
   return { success: true, newBalance };
+}
+
+// Customer: Cancel Active Order (Before Kitchen Preparation starts)
+export async function cancelOrderCustomerAction(orderId: string, reason: string) {
+  const session = await getSession();
+  if (!session) {
+    return { success: false, error: "Authentication required" };
+  }
+
+  const order = await dbService.getOrder(orderId);
+  if (!order) {
+    return { success: false, error: "Order not found" };
+  }
+
+  // Check ownership
+  const isOwner = (session.email && order.customerEmail === session.email) ||
+                  (session.phone && order.customerPhone === session.phone);
+  if (!isOwner && session.role !== "ADMIN") {
+    return { success: false, error: "Access Denied: You do not own this order." };
+  }
+
+  // Check if cooking already started
+  if (order.status !== "RECEIVED") {
+    return { success: false, error: `Cannot cancel order. The kitchen has already set the status to ${order.status}.` };
+  }
+
+  // Update order status to CANCELLED and refund automatically
+  const updates = {
+    status: "CANCELLED",
+    refundStatus: "REFUNDED",
+    refundAmount: order.total,
+    refundReason: `Customer Cancelled: ${reason}`,
+  };
+
+  // Re-credit customer balance
+  const customer = await dbService.getUserByIdentifier(order.customerEmail || order.customerPhone || "");
+  if (customer) {
+    const currentBalance = customer.balance !== undefined ? customer.balance : 1000.0;
+    await dbService.updateUserBalance(customer.id, currentBalance + order.total);
+  }
+
+  // Restore Stock amounts!
+  for (const oItem of order.items) {
+    const dbItem = await dbService.getMenuItem(oItem.menuItemId);
+    if (dbItem) {
+      const restoredStock = dbItem.stock + oItem.quantity;
+      await dbService.updateMenuItem(dbItem.id, {
+        stock: restoredStock,
+        status: "IN_STOCK"
+      });
+    }
+  }
+
+  const updatedOrder = await dbService.updateOrder(orderId, updates);
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/kitchen");
+  revalidatePath(`/table/${order.tableNumber}`);
+
+  return { success: true, order: updatedOrder };
 }

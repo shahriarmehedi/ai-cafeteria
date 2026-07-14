@@ -113,23 +113,39 @@ export async function POST(req: Request) {
           : activeOrder;
 
         if (!targetOrder) {
-          finalResponse = `I see you are requesting a refund, but I could not find that order. Please specify your order number (e.g. CB-1002) so I can help escalate it.`;
+          finalResponse = `I see you are requesting a refund or cancellation, but I could not find that order. Please specify your order number (e.g. CB-1002) so I can help you.`;
+          break;
+        }
+
+        // AUTO-CANCEL GUARD: If the kitchen has not started cooking it (status is RECEIVED)
+        if (targetOrder.status === "RECEIVED") {
+          const reasonText = classification.extractedData?.reason || "Cancelled via AI Chef Chatbot";
+          const { cancelOrderCustomerAction } = await import("@/app/actions");
+          const cancelRes = await cancelOrderCustomerAction(targetOrder.id, reasonText);
+          if (cancelRes.success && cancelRes.order) {
+            finalResponse = `I have successfully cancelled your order **${targetOrder.orderNumber}** and automatically refunded ৳${targetOrder.total.toFixed(2)} back to your wallet balance because the kitchen has not yet started preparing it!`;
+            responsePayload = cancelRes.order;
+            orderPlaced = true; 
+            orderUpdated = true;
+          } else {
+            finalResponse = `I tried to cancel your order, but ran into an error: ${cancelRes.error || "Please try cancelling via your Order History."}`;
+          }
           break;
         }
 
         const eligibility = await orderService.verifyRefundEligibility(targetOrder.id);
         if (eligibility.eligible) {
-          // Strict Guardrail: AI Chef flags the order in the database for human approval (never executes refunds autonomously)
+          // Strict Guardrail: AI Chef flags the order in the database for human approval
           const reasonText = classification.extractedData?.reason || "Refund requested via AI Chef assistant";
           const updatedOrder = await orderService.flagOrderForHumanReview(targetOrder.id, reasonText);
           
-          finalResponse = `I have successfully registered a refund request for Order **${targetOrder.orderNumber}** due to: "${reasonText}". I have escalated it to our support team for manual review and human approval.`;
+          finalResponse = `Since the kitchen has already started preparing your order (**${targetOrder.status}**), I cannot cancel it automatically. However, I have successfully registered a refund request for Order **${targetOrder.orderNumber}** due to: "${reasonText}", and escalated it to our support team for manual review.`;
           responsePayload = updatedOrder;
           orderUpdated = true;
           
           console.info({ event: "REFUND_ESCALATION_SUCCESS", orderNumber: targetOrder.orderNumber, reason: reasonText });
         } else {
-          finalResponse = `I cannot request a refund for Order **${targetOrder.orderNumber}**. ${eligibility.reason}`;
+          finalResponse = `I cannot register a refund for Order **${targetOrder.orderNumber}** because it is not eligible: ${eligibility.reason || "Already processed."}`;
         }
         break;
       }

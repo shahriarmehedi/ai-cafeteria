@@ -28,6 +28,7 @@ export interface MenuItem {
   image: string;
   category: string; // APPETIZERS, MAIN_COURSES, DESSERTS, BEVERAGES
   status: string; // IN_STOCK, OUT_OF_STOCK
+  stock: number;
   createdAt: Date;
 }
 
@@ -121,6 +122,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍛",
     category: "MAIN_COURSES",
     status: "IN_STOCK",
+    stock: 50,
     createdAt: new Date(),
   },
   {
@@ -131,6 +133,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍛",
     category: "MAIN_COURSES",
     status: "IN_STOCK",
+    stock: 10, // Max 10 items (eleventh order fails)
     createdAt: new Date(),
   },
   {
@@ -141,6 +144,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍔",
     category: "MAIN_COURSES",
     status: "IN_STOCK",
+    stock: 15,
     createdAt: new Date(),
   },
   {
@@ -151,6 +155,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍟",
     category: "APPETIZERS",
     status: "IN_STOCK",
+    stock: 20,
     createdAt: new Date(),
   },
   {
@@ -161,6 +166,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍗",
     category: "APPETIZERS",
     status: "IN_STOCK",
+    stock: 20,
     createdAt: new Date(),
   },
   {
@@ -171,6 +177,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍰",
     category: "DESSERTS",
     status: "IN_STOCK",
+    stock: 25,
     createdAt: new Date(),
   },
   {
@@ -181,6 +188,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🍨",
     category: "DESSERTS",
     status: "IN_STOCK",
+    stock: 30,
     createdAt: new Date(),
   },
   {
@@ -191,6 +199,7 @@ const initialMenuItems: MenuItem[] = [
     image: "☕",
     category: "BEVERAGES",
     status: "IN_STOCK",
+    stock: 100,
     createdAt: new Date(),
   },
   {
@@ -201,6 +210,7 @@ const initialMenuItems: MenuItem[] = [
     image: "🥤",
     category: "BEVERAGES",
     status: "IN_STOCK",
+    stock: 40,
     createdAt: new Date(),
   },
 ];
@@ -218,7 +228,11 @@ function initDb(): MockData {
           createdAt: new Date(u.createdAt)
         })),
         tables: (data.tables || []).map((t: any) => ({ ...t, createdAt: new Date(t.createdAt) })),
-        menuItems: (data.menuItems || []).map((m: any) => ({ ...m, createdAt: new Date(m.createdAt) })),
+        menuItems: (data.menuItems || []).map((m: any) => ({ 
+          ...m, 
+          stock: m.stock !== undefined ? m.stock : 50,
+          createdAt: new Date(m.createdAt) 
+        })),
         orders: (data.orders || []).map((o: any) => ({
           ...o,
           createdAt: new Date(o.createdAt),

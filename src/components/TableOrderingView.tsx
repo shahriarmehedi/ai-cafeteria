@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { MenuItem, OrderItem } from "@/lib/mockDb";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { SessionUser } from "@/lib/session";
-import { createOrderAction, getCustomerOrdersAction } from "@/app/actions";
+import { createOrderAction, getCustomerOrdersAction, cancelOrderCustomerAction } from "@/app/actions";
 import {
   Search,
   ShoppingCart,
@@ -127,6 +128,18 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
   ]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  
+  // Cancellation & Hydration State
+  const [mounted, setMounted] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("Changed my mind");
+  const [customCancelReason, setCustomCancelReason] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
@@ -272,6 +285,34 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
       alert("Error placing order. Please try again.");
     } finally {
       setOrderSubmitting(false);
+    }
+  };
+
+  const handleCancelOrderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancellingOrderId) return;
+    const finalReason = cancelReason === "Other / Custom reason" ? customCancelReason : cancelReason;
+    if (!finalReason.trim()) {
+      toast("Please specify a cancellation reason", "error");
+      return;
+    }
+    setCancelLoading(true);
+    try {
+      const res = await cancelOrderCustomerAction(cancellingOrderId, finalReason);
+      if (res.success) {
+        toast("Order cancelled successfully and wallet refunded!", "success");
+        setShowCancelModal(false);
+        setCancellingOrderId(null);
+        setCustomCancelReason("");
+        await loadPastOrders();
+        router.refresh();
+      } else {
+        toast(res.error || "Cancellation failed", "error");
+      }
+    } catch (err) {
+      toast("Error cancelling order", "error");
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -587,10 +628,15 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                 </div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "8px" }}>
-                <span style={{ fontWeight: 700, fontSize: "14px" }}>
-                  ৳{item.price.toFixed(2)}
-                </span>
-                {item.status === "OUT_OF_STOCK" ? (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontWeight: 700, fontSize: "14px" }}>
+                    ৳{item.price.toFixed(2)}
+                  </span>
+                  <span style={{ fontSize: "10px", color: item.stock <= 5 ? "#f87171" : "var(--text-muted)", marginTop: "2px" }}>
+                    {item.stock <= 5 ? `Only ${item.stock} left!` : `${item.stock} in stock`}
+                  </span>
+                </div>
+                {item.status === "OUT_OF_STOCK" || item.stock <= 0 ? (
                   <span style={{ fontSize: "11px", color: "var(--danger)", fontWeight: 500 }}>Out of Stock</span>
                 ) : (
                   <button
@@ -697,7 +743,12 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                 pastOrders.map((order) => (
                   <div key={order.id} style={{ padding: "12px", background: "rgba(255, 255, 255, 0.01)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <span style={{ fontSize: "13px", fontWeight: 700 }}>Order: {order.orderNumber}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "13px", fontWeight: 700 }}>Order: {order.orderNumber}</span>
+                        <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                          {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
                       <div style={{ display: "flex", gap: "6px" }}>
                         <span className={`badge ${
                           order.status === "RECEIVED" ? "badge-info" :
@@ -731,13 +782,35 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
                     <div style={{ fontSize: "11px", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.03)", paddingTop: "6px", marginTop: "6px" }}>
                       <span>Table {order.tableNumber} • Total: <strong>৳{order.total.toFixed(2)}</strong></span>
                       
-                      <button
-                        onClick={() => handleRefreshPastOrder(order.id)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ height: "24px", padding: "0 8px", fontSize: "10px", borderRadius: "4px" }}
-                      >
-                        <RefreshCw size={10} /> Refresh
-                      </button>
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        {order.status === "RECEIVED" && (
+                          <button
+                            onClick={() => {
+                              setCancellingOrderId(order.id);
+                              setShowCancelModal(true);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              height: "24px",
+                              padding: "0 8px",
+                              fontSize: "10px",
+                              borderRadius: "4px",
+                              color: "#f87171",
+                              background: "rgba(239, 68, 68, 0.06)",
+                              borderColor: "rgba(239, 68, 68, 0.15)"
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleRefreshPastOrder(order.id)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ height: "24px", padding: "0 8px", fontSize: "10px", borderRadius: "4px" }}
+                        >
+                          <RefreshCw size={10} /> Refresh
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -976,6 +1049,77 @@ export default function TableOrderingView({ tableNumber, menuItems, session }: P
             </form>
           </div>
         </div>
+      )}
+
+      {/* Customer Cancellation Modal */}
+      {showCancelModal && mounted && typeof document !== "undefined" && (
+        createPortal(
+          <div style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(9, 9, 11, 0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+            <div className="glass-panel animate-fade-in" style={{ width: "90%", maxWidth: "380px", padding: "24px", background: "#09090b", border: "1px solid var(--border)", borderRadius: "12px", boxShadow: "0 20px 50px rgba(0,0,0,0.8)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Cancel Order</h3>
+                <button onClick={() => { setShowCancelModal(false); setCancellingOrderId(null); }} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "16px" }}>✕</button>
+              </div>
+
+              <form onSubmit={handleCancelOrderSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: "11px" }}>Select Reason for Cancellation</label>
+                  <select
+                    className="input-field"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    style={{ fontSize: "13px", padding: "10px" }}
+                  >
+                    <option value="Changed my mind">Changed my mind</option>
+                    <option value="Ordered wrong items">Ordered wrong items</option>
+                    <option value="Found something else">Found something else</option>
+                    <option value="Decided to eat later">Decided to eat later</option>
+                    <option value="Other / Custom reason">Other / Custom reason</option>
+                  </select>
+                </div>
+
+                {cancelReason === "Other / Custom reason" && (
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "11px" }}>Please explain your reason</label>
+                    <textarea
+                      required
+                      placeholder="Enter custom cancellation reason here..."
+                      className="input-field"
+                      rows={3}
+                      value={customCancelReason}
+                      onChange={(e) => setCustomCancelReason(e.target.value)}
+                      style={{ resize: "none", fontSize: "13px" }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.15)", borderRadius: "8px", padding: "10px", fontSize: "11px", color: "var(--success)" }}>
+                  💵 Automatically refunds 100% of BDT amount back to your wallet balance.
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => { setShowCancelModal(false); setCancellingOrderId(null); }}
+                    className="btn btn-secondary"
+                    style={{ flex: 1, fontSize: "13px" }}
+                  >
+                    No, Keep Order
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cancelLoading}
+                    className="btn btn-primary"
+                    style={{ flex: 1, background: "var(--danger)", border: "none", color: "#fff", fontSize: "13px", fontWeight: 700 }}
+                  >
+                    {cancelLoading ? <Loader2 size={14} className="animate-spin" /> : "Confirm Cancel"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )
       )}
     </div>
   );

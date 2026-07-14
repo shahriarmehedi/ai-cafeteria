@@ -155,12 +155,13 @@ export const dbService = {
     image: string;
     category: string;
     status: string;
+    stock?: number;
   }): Promise<MenuItem> => {
     if (isPrismaActive && prisma) {
-      const m = await prisma.menuItem.create({ data: item });
+      const m = await prisma.menuItem.create({ data: { ...item, stock: item.stock ?? 50 } });
       return { ...m, createdAt: new Date(m.createdAt) };
     }
-    return mockDb.createMenuItem(item);
+    return mockDb.createMenuItem({ ...item, stock: item.stock ?? 50 });
   },
 
   updateMenuItem: async (id: string, updates: Partial<MenuItem>): Promise<MenuItem | null> => {

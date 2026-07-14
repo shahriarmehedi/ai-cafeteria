@@ -32,6 +32,7 @@ model MenuItem {
   image       String   // SVG path/name or image url
   category    String   // APPETIZERS, MAIN_COURSES, DESSERTS, BEVERAGES
   status      String   @default("IN_STOCK") // IN_STOCK, OUT_OF_STOCK
+  stock       Int      @default(50)
   createdAt   DateTime @default(now())
 }
 

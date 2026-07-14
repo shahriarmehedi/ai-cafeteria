@@ -23,6 +23,7 @@ import {
   ChefHat,
   Coffee,
   Activity,
+  AlertCircle,
 } from "lucide-react";
 
 interface Props {
@@ -92,6 +93,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
     image: "🍔",
     category: "MAIN_COURSES",
     status: "IN_STOCK",
+    stock: "50",
   });
   const [menuLoading, setMenuLoading] = useState(false);
 
@@ -155,6 +157,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
       image: menuForm.image,
       category: menuForm.category,
       status: menuForm.status,
+      stock: parseInt(menuForm.stock) !== undefined ? parseInt(menuForm.stock) : 50,
     };
 
     try {
@@ -177,6 +180,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
         image: "🍔",
         category: "MAIN_COURSES",
         status: "IN_STOCK",
+        stock: "50",
       });
     } catch (err) {
       console.error(err);
@@ -195,6 +199,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
       image: item.image,
       category: item.category,
       status: item.status,
+      stock: (item.stock !== undefined ? item.stock : 50).toString(),
     });
   };
 
@@ -352,6 +357,39 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
             </div>
           </div>
 
+          {/* Key Metrics Row 2 */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+            <div className="glass-panel" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px" }}>
+              <div style={{ background: "rgba(99,102,241,0.06)", color: "#818cf8", padding: "10px", borderRadius: "10px", border: "1px solid rgba(99,102,241,0.15)" }}>
+                <TableIcon size={20} />
+              </div>
+              <div>
+                <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>Active Seating Tables</span>
+                <h3 style={{ fontSize: "18px", fontWeight: 800 }}>{tablesList.filter(t => t.status === "ACTIVE").length} Tables</h3>
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px" }}>
+              <div style={{ background: "rgba(239,68,68,0.06)", color: "#f87171", padding: "10px", borderRadius: "10px", border: "1px solid rgba(239,68,68,0.15)" }}>
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>Out of Stock / Low Items</span>
+                <h3 style={{ fontSize: "18px", fontWeight: 800 }}>{itemsList.filter(i => i.status === "OUT_OF_STOCK" || (i.stock !== undefined ? i.stock : 50) <= 0).length} Items</h3>
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px" }}>
+              <div style={{ background: "rgba(245,158,11,0.06)", color: "#fbbf24", padding: "10px", borderRadius: "10px", border: "1px solid rgba(245,158,11,0.15)" }}>
+                <DollarSign size={20} />
+              </div>
+              <div>
+                <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 500 }}>Pending Refund Requests</span>
+                <h3 style={{ fontSize: "18px", fontWeight: 800 }}>{ordersList.filter(o => o.refundStatus === "ESCALATED").length} Pending</h3>
+              </div>
+            </div>
+          </div>
+
           {/* Popularity Metrics */}
           <div className="glass-panel">
             <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "16px" }}>Popular Food Items</h3>
@@ -424,6 +462,18 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Stock Quantity</label>
+                  <input
+                    type="number"
+                    required
+                    className="input-field"
+                    placeholder="e.g. 50"
+                    value={menuForm.stock}
+                    onChange={(e) => setMenuForm((prev) => ({ ...prev, stock: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Category</label>
                   <select
                     className="input-field"
@@ -489,6 +539,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                         image: "🍔",
                         category: "MAIN_COURSES",
                         status: "IN_STOCK",
+                        stock: "50",
                       });
                     }}
                   >
@@ -510,6 +561,7 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                   <th style={{ padding: "10px" }}>Food Item</th>
                   <th style={{ padding: "10px" }}>Price</th>
                   <th style={{ padding: "10px" }}>Availability</th>
+                  <th style={{ padding: "10px" }}>Stock Level</th>
                   <th style={{ padding: "10px", textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
@@ -532,6 +584,11 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
                       >
                         {item.status === "IN_STOCK" ? "In Stock" : "Out of Stock"}
                       </button>
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      <span style={{ fontWeight: 600, color: (item.stock !== undefined ? item.stock : 50) <= 5 ? "#f87171" : "inherit" }}>
+                        {item.stock !== undefined ? item.stock : 50} pieces
+                      </span>
                     </td>
                     <td style={{ padding: "10px", textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "6px" }}>
@@ -702,10 +759,13 @@ export default function AdminDashboardView({ menuItems, orders, tables, session 
             {ordersList.filter(o => ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "")).length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {ordersList.filter(o => ["REFUNDED", "REFUND_DENIED"].includes(o.refundStatus || "")).map((order) => (
-                  <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
+                  <div key={order.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "rgba(255,255,255,0.01)", fontSize: "12px" }}>
                     <div>
                       <strong>{order.orderNumber}</strong> • Table {order.tableNumber} • ৳{order.total.toFixed(2)}
-                      {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
+                      <span style={{ display: "block", fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                        👤 {order.customerName || "Customer"} ({order.customerEmail || order.customerPhone || "No contact info"})
+                      </span>
+                      {order.refundReason && <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Reason: "{order.refundReason}"</span>}
                     </div>
                     <span className={`badge ${order.refundStatus === "REFUNDED" ? "badge-success" : "badge-danger"}`} style={{ borderStyle: "dashed" }}>
                       {order.refundStatus}
