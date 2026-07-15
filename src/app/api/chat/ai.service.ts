@@ -59,7 +59,7 @@ export class AIService {
     const menuContext = menuItems
       .map(
         (item) =>
-          `- ${item.name} (${item.category}): ৳${item.price.toFixed(2)}. Description: ${item.description}. Status: ${item.status}. ID: ${item.id}`
+          `- ${item.name} (${item.category}): ৳${item.price.toFixed(2)}. Description: ${item.description}. Status: ${item.status}. Stock remaining: ${item.stock !== undefined ? item.stock : 50}. ID: ${item.id}`
       )
       .join("\n");
 
@@ -74,7 +74,7 @@ export class AIService {
 
     if (!this.genAI) {
       console.warn({ event: "GEMINI_API_KEY_MISSING", message: "Using offline local AI assistant fallback." });
-      return this.generateLocalAIResponse(message, menuItems, activeOrder, tableNumber);
+      return this.generateLocalAIResponse(message, menuItems, activeOrder, tableNumber, walletBalance);
     }
 
     try {
@@ -95,7 +95,7 @@ For other intents, the backend will execute actions, but you should still provid
 Guidelines:
 - Do NOT prefix your responses with '🤖 [AI Chef]' or any similar tag. Speak naturally and directly to the customer.
 - You are aware of the customer's wallet balance context. If the user asks "what is my balance?" or similar, state their exact wallet balance clearly.
-- If they want to place an order, but the order's total price exceeds their current wallet balance, you MUST refuse to place the order. Politely warn them of their insufficient balance, state the total order cost, and suggest they recharge their wallet via the "Recharge Wallet" simulation button inside their profile initials dropdown menu at the top-right corner. In this case, classify the intent as GENERAL_INQUIRY (since we will block order execution) and output the draft explanation in replyDraft.
+- If they want to place an order, but the order's total price exceeds their current wallet balance, or if any of the items they requested are out of stock (Stock remaining is 0 or Status is OUT_OF_STOCK), or if the requested quantity exceeds the remaining stock for that item, you MUST refuse to place the order. Politely warn them of the specific reason (either insufficient balance, item out of stock, or insufficient stock count remaining with details of how many are left), and suggest alternatives. In these cases, you MUST classify the intent as GENERAL_INQUIRY (since we will block order execution) and output the explanation in replyDraft.
 - Categorize user's input with a confidence score between 0.0 and 1.0.
 - Extract any mentioned order ID (e.g. CB-1002), table number, refund amount, or reasons.
 - For PLACE_ORDER, map the requested item names to the exact database item IDs in 'items' array. If they use a generic word like 'tea' or 'coffee', map it to the closest matching in-stock item ID from the menu.
@@ -190,10 +190,11 @@ ${walletBalance !== undefined ? `৳${walletBalance.toFixed(2)}` : "Not availabl
     message: string,
     menuItems: MenuItem[],
     activeOrder: Order | null,
-    tableNumber: number
+    tableNumber: number,
+    walletBalance?: number
   ): IntentResponse {
     const lowerMsg = message.toLowerCase();
-    const inStock = menuItems.filter((item) => item.status === "IN_STOCK");
+    const inStock = menuItems.filter((item) => item.status === "IN_STOCK" && (item.stock !== undefined ? item.stock : 50) > 0);
 
     // 1. Account Modification Checks
     const isAccountMod =
@@ -262,9 +263,8 @@ ${walletBalance !== undefined ? `৳${walletBalance.toFixed(2)}` : "Not availabl
 
     if (isOrder) {
       const orderedItems: Array<{ itemId: string; quantity: number }> = [];
-      const matched = inStock.filter((item) => {
+      const matched = menuItems.filter((item) => {
         const name = item.name.toLowerCase();
-        const desc = item.description.toLowerCase();
         
         if (lowerMsg.includes(name)) return true;
         if (lowerMsg.includes("tea") && name.includes("tea")) return true;
@@ -275,6 +275,28 @@ ${walletBalance !== undefined ? `৳${walletBalance.toFixed(2)}` : "Not availabl
       });
 
       if (matched.length > 0) {
+        // Check stock first
+        for (const item of matched) {
+          const itemStock = item.stock !== undefined ? item.stock : 50;
+          if (itemStock <= 0 || item.status !== "IN_STOCK") {
+            return {
+              intent: "GENERAL_INQUIRY",
+              confidence: 0.9,
+              replyDraft: `Sorry, **${item.name}** is currently out of stock. Please look at other items on our menu!`
+            };
+          }
+        }
+
+        // Check balance next
+        const total = matched.reduce((sum, item) => sum + item.price, 0);
+        if (walletBalance !== undefined && walletBalance < total) {
+          return {
+            intent: "GENERAL_INQUIRY",
+            confidence: 0.9,
+            replyDraft: `Insufficient wallet balance to place this order. The total cost is ৳${total.toFixed(2)} but your wallet only has ৳${walletBalance.toFixed(2)}. Please recharge your wallet via the Profile initials dropdown menu at the top-right.`
+          };
+        }
+
         matched.forEach((m) => orderedItems.push({ itemId: m.id, quantity: 1 }));
         return {
           intent: "PLACE_ORDER",

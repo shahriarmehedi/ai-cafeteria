@@ -188,7 +188,7 @@ export async function POST(req: Request) {
         const orderItems = [];
         for (const orderItem of items) {
           const item = menuItems.find(m => m.id === orderItem.itemId);
-          if (item && item.status === "IN_STOCK") {
+          if (item) {
             orderItems.push({
               menuItemId: item.id,
               menuItemName: item.name,
@@ -199,20 +199,21 @@ export async function POST(req: Request) {
         }
 
         if (orderItems.length > 0) {
-          const newOrder = await dbService.createOrder({
+          const { createOrderAction } = await import("@/app/actions");
+          const orderRes = await createOrderAction({
             tableNumber: tableNumber,
-            customerEmail: session?.email || null,
-            customerPhone: session?.phone || null,
-            customerName: session?.name || "Table " + tableNumber,
             specialInstructions: classification.extractedData?.specialInstructions || null,
             items: orderItems,
           });
 
-          finalResponse = `I've placed your order directly! Your order number is **${newOrder.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
-          responsePayload = newOrder;
-          orderPlaced = true;
-          
-          console.info({ event: "ORDER_PLACED_VIA_CHAT", orderNumber: newOrder.orderNumber, tableNumber });
+          if (orderRes.success && orderRes.order) {
+            finalResponse = `I've placed your order directly! Your order number is **${orderRes.order.orderNumber}** containing: ${orderItems.map(i => `${i.menuItemName} (x${i.quantity})`).join(", ")}. It has been sent directly to the kitchen!`;
+            responsePayload = orderRes.order;
+            orderPlaced = true;
+            console.info({ event: "ORDER_PLACED_VIA_CHAT", orderNumber: orderRes.order.orderNumber, tableNumber });
+          } else {
+            finalResponse = `I couldn't place your order: ${orderRes.error || "Please try ordering from our menu grid."}`;
+          }
         } else {
           finalResponse = `I couldn't place that order because the items requested are currently out of stock. Please browse our menu for alternatives!`;
         }
